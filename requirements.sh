@@ -1,23 +1,23 @@
 conda install python=3.8.5 -y
-pip install transformers==4.11.0
-pip install datasets==1.15.1
+pip3 install transformers==4.11.0
+pip3 install datasets==1.15.1
 conda install pytorch cudatoolkit=11.0 -c pytorch -y
-pip install optuna==2.10.0
+pip3 install optuna==2.10.0
 
-pip install numpy
-pip install pandas
+pip3 install numpy
+pip3 install pandas
 pip3 install sklearn
-pip install matplotlib
-pip install seaborn
-pip install jupyter jupytext notebook ipykernel environment_kernels
+pip3 install matplotlib
+pip3 install seaborn
+pip3 install jupyter jupytext notebook ipykernel environment_kernels
 
 apt-get install tmux -y
-pip install wandb
+pip3 install wandb
 
 
 ### NLP task
-pip install tweepy==3.9.0
-pip install konlpy
+pip3 install tweepy==3.9.0
+pip3 install konlpy
 
 install mecab
 apt-get install sudo
