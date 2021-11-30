@@ -14,8 +14,7 @@ from selenium import webdriver
 def check_title(title, chn_range) :
     chars = re.sub('\s+' , '', title)
     sep_chars = [ch for ch in chars if ord(ch) in chn_range] 
-    sep_rate = len(sep_chars) / len(chars)
-    return True if sep_rate >= 0.3 else False     
+    return True if len(sep_chars) >= 3 else False     
 
 def get_original(title, driver) :
     element = driver.find_element_by_name('query')
@@ -30,13 +29,18 @@ def get_original(title, driver) :
     bs = BeautifulSoup(response.content, 'html.parser')
 
     paper_info = bs.findAll('div', {'class' , 'ui_listing_info'})
-    paper_name = paper_info[0].find('a').text
-    return paper_name
+
+    if len(paper_info) == 0 :
+        return None
+    else :
+        paper_name = paper_info[0].find('a').text
+        return paper_name
 
 def main() :
 
     # -- Load Dataset
     paper_data = load_dataset('metamong1/summarization_paper', 
+        download_mode='force_redownload',
         use_auth_token='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')
 
     chn_range = range(ord('一'), ord('鿕')+1)
@@ -62,8 +66,18 @@ def main() :
                 if org_name != None :
                     dataset[idx]['title'] = org_name
                     num_chnaged += 1
+                else :
+                    title = title[:10] # make narrow query
+                    org_name = get_original(title, driver)
+                    if org_name == None :
+                        continue
+
+                    dataset[idx]['title'] = org_name
+                    num_chnaged += 1
+
             except :
                 continue
+
         print('Changed Data : %d' %num_chnaged)
         return dataset
 
