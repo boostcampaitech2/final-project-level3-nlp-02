@@ -9,13 +9,13 @@ class ModelArguments:
     """
 
     model_name_or_path: str = field(
-        default="klue/roberta-large",
+        default="gogamza/kobart-summarization",
         metadata={
             "help": "Path to pretrained model or model identifier from huggingface.co/models"
         },
     )
     config_name: Optional[str] = field(
-        default="klue/roberta-large",
+        default="gogamza/kobart-summarization",
         metadata={
             "help": "Pretrained config name or path if not the s ame as model_name"
         },
@@ -30,35 +30,27 @@ class ModelArguments:
         default=True,
         metadata={"help": "Whether to use one of the fast tokenizer (backed by the tokenizers library) or not."},
     )
+    cache_dir: Optional[str] = field(
+        default=None,
+        metadata={"help": "Where to store the pretrained models downloaded from huggingface.co"},
+    )
 
 @dataclass
 class DataTrainingArguments:
     """
     Arguments pertaining to what data we are going to input our model for training and eval.
     """
-    learning_rate: Optional[float] = field(
-        default=5e-5,
-        metadata = {"help":"The initial learning rate for Adam."}
-    )
-
-    num_train_epochs: Optional[float] = field(
-        default=3.0,
-        metadata = {"help":"Total number of training epochs to perform."}
-    )
-
-    warmup_ratio: Optional[float] = field(
-        default=0.1,
-        metadata = {"help" : "Proportion of training to perform linear learning rate warmup for. E.g., 0.1 = 10% of training."}
-    )
-
-    gradient_accumulation_steps: Optional[int] = field(
-        default = 1,
-        metadata = {"help":"Number of updates steps to accumulate before performing a backward/update pass."}
-    )
-
     dataset_name: Optional[str] = field(
-        default="metamong1/summarization_paper",
+        default="paper,news",
         metadata={"help": "The name of the dataset to use."},
+    )
+    text_column: Optional[str] = field(
+        default='text',
+        metadata={"help": "The name of the column in the datasets containing the full texts (for summarization)."},
+    )
+    summary_column: Optional[str] = field(
+        default='title',
+        metadata={"help": "The name of the column in the datasets containing the summaries (for summarization)."},
     )
     overwrite_cache: bool = field(
         default=False,
@@ -68,90 +60,70 @@ class DataTrainingArguments:
         default=2,
         metadata={"help": "The number of processes to use for the preprocessing."},
     )
-    max_seq_length: int = field(
-        default=384,
+    max_source_length: int = field(
+        default=512,
         metadata={
             "help": "The maximum total input sequence length after tokenization. Sequences longer "
             "than this will be truncated, sequences shorter will be padded."
         },
     )
+    max_target_length: int = field(
+        default=256,
+        metadata={
+            "help": "The maximum total input sequence length after tokenization. Sequences longer "
+            "than this will be truncated, sequences shorter will be padded."
+        },
+    )
+    val_max_target_length: Optional[int] = field(
+        default=256,
+        metadata={
+            "help": "The maximum total sequence length for validation target text after tokenization. Sequences longer "
+            "than this will be truncated, sequences shorter will be padded. Will default to `max_target_length`."
+            "This argument is also used to override the ``max_length`` param of ``model.generate``, which is used "
+            "during ``evaluate`` and ``predict``."
+        },
+    )
     pad_to_max_length: bool = field(
-        default=True, #True
-        metadata={
-            "help": "Whether to pad all samples to `max_seq_length`. "
-            "If False, will pad the samples dynamically when batching to the maximum length in the batch (which can "
-            "be faster on GPU but will be slower on TPU)."
-        },
-    )
-    doc_stride: int = field(
-        default=128,
-        metadata={
-            "help": "When splitting up a long document into chunks, how much stride to take between chunks."
-        },
-    )
-    max_answer_length: int = field(
-        default=30,
-        metadata={
-            "help": "The maximum length of an answer that can be generated. This is needed because the start "
-            "and end predictions are not conditioned on one another."
-        },
-    )
-    eval_retrieval: str = field(
-        default="sparse",
-        metadata={
-            "help": "Choose which passage retrieval to be used.[sparse, elastic_sparse]."
-        },
-    )
-    num_clusters: int = field(
-        default=64, metadata={"help": "Define how many clusters to use for faiss."}
-    )
-    top_k_retrieval: int = field(
-        default=50,
-        metadata={
-            "help": "Define how many top-k passages to retrieve based on similarity."
-        },
-    )
-    score_ratio: float = field(
-        default=0,
-        metadata={
-            "help": "Define the score ratio."
-        },
-    )
-    train_retrieval: bool = field(
         default=False,
-        metadata={"help": "Whether to train sparse/dense embedding (prepare for retrieval)."},
+        metadata={
+            "help": "Whether to pad all samples to model maximum sentence length. "
+            "If False, will pad the samples dynamically when batching to the maximum length in the batch. More "
+            "efficient on GPU but very bad for TPU."
+        },
     )
-    data_selected: str = field(
-        default="",
-        metadata={"help": "data to find added tokens, context/answers/question with '_' e.g.) context_answers"},
-    )
-    rtt_dataset_name:str = field(
+    max_train_samples: Optional[int] = field(
         default=None,
-        metadata={"help" : "input rtt data name with path"},
+        metadata={
+            "help": "For debugging purposes or quicker training, truncate the number of training examples to this "
+            "value if set."
+        },
     )
-    preprocessing_pattern:str = field(
+    max_eval_samples: Optional[int] = field(
         default=None,
-        metadata={"help" : "preprocessing(e.g. 123)"},
+        metadata={
+            "help": "For debugging purposes or quicker training, truncate the number of evaluation examples to this "
+            "value if set."
+        },
     )
-    add_special_tokens_flag:bool = field(
-        default=False,
-        metadata={"help": "add special tokens"},
+    max_predict_samples: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": "For debugging purposes or quicker training, truncate the number of prediction examples to this "
+            "value if set."
+        },
     )
-    add_special_tokens_query_flag:bool = field(
-        default=False,
-        metadata={"help": "add special tokens about question type"},
+    num_beams: Optional[int] = field(
+        default=5,
+        metadata={
+            "help": "Number of beams to use for evaluation. This argument will be passed to ``model.generate``, "
+            "which is used during ``evaluate`` and ``predict``."
+        },
     )
-    retrieve_pickle: str = field(
-        default='',
-        metadata={"help":"put a pickle file path for load"},
-    )
-    another_scheduler_flag :bool = field(
-        default=False,
-        metadata={"help": "create another scheduler"}
-    )
-    num_cycles :int = field(
-        default=1,
-        metadata={"help": "cycles for get_cosine_schedule_with_warmup"}
+    ignore_pad_token_for_loss: bool = field(
+        default=True,
+        metadata={
+            "help": "Whether to ignore the tokens corresponding to padded labels in the loss computation or not."
+        },
     )
 
 @dataclass
@@ -173,4 +145,47 @@ class LoggingArguments:
     project_name: Optional[str] = field(
         default="mrc_project_1",
         metadata={"help": "project name"},
+    )
+
+@dataclass
+class GenArguments:
+    """
+    Arguments generate model to summarization.
+    https://huggingface.co/transformers/main_classes/model.html
+    """
+    max_length: Optional[int] = field(
+        default=50,
+        metadata={"help": "maximum length of the sequence to be generated."},
+    )
+    min_length: Optional[int]  = field(
+        default=2,
+        metadata={"help": "minimum length of the sequence to be generated."},
+    )
+    length_penalty: Optional[float] = field(
+        default=1,
+        metadata={"help": "values < 1.0 in order to encourage the model to generate shorter sequences"},
+    )
+    early_stopping: bool = field(
+        default=True,
+        metadata={"help": "Whether to stop the beam search when at least num_beams sentences are finished per batch or not"},
+    )
+    output_scores: bool = field(
+        default=True,
+        metadata={"help": "Whether or not to return the prediction scores."},
+    )
+    no_repeat_ngram_size: Optional[int] = field(
+        default=2,
+        metadata={"help": "If set to int > 0, all ngrams of that size can only occur once."},
+    )
+    num_return_sequences: Optional[int] = field(
+        default=5,
+        metadata={"help": "The number of independently computed returned sequences for each element in the batch."},
+    )
+    top_k: Optional[int] = field(
+        default=50,
+        metadata={"help": "The number of highest probability vocabulary tokens to keep for top-k-filtering."},
+    )
+    top_p: Optional[float] = field(
+        default=0.95,
+        metadata={"help": "the most probable tokens with probabilities that add up to top_p or higher are kept for generation."},
     )
