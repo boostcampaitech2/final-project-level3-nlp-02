@@ -86,9 +86,7 @@ class DocsPreprocessor(Preprocessor) :
         super().__init__()
 
     def base_preprocess(self, text) :
-        text = re.sub('\"\"', ' ', text)
         text = re.sub(r'\n', ' ', text)
-        text = re.sub('[▶▲△]', ', ', text)
         return text
 
     def for_train(self, data) :
@@ -115,33 +113,3 @@ class DocsPreprocessor(Preprocessor) :
         text = self.strip(text)
         data['text'] = text 
         return data
-
-class Filter :
-    def __init__(self, max_text_size, min_title_size) :
-        self.max_text_size = max_text_size
-        self.min_title_size = min_title_size
-        self.kor_comp = re.compile('[가-힣]')
-
-    def __call__(self, data) :
-        self.check_data(data)
-        return self.check_size(data) and self.check_title(data)
-
-    def check_size(self, data) :
-        if len(data['text']) <= self.max_text_size and len(data['title']) >= self.min_title_size :   
-            return True
-        else :
-            return False 
-
-    def check_title(self, data) :
-        title = data['title']
-        title = re.sub('\s+' , '', title)
-        kor_chars = self.kor_comp.findall(title)
-        kor_rate = len(kor_chars) / len(title)
-        return True if kor_rate >= 0.5 else False
-
-    def check_data(self, data) :
-        assert isinstance(data, dict)
-        if 'text' not in data.keys() or 'title' not in data.keys() :
-            raise KeyError('Wrong Data keys')
-      
-
