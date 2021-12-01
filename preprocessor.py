@@ -90,7 +90,7 @@ class DocsPreprocessor(Preprocessor) :
         return text
 
     def for_train(self, data) :
-        self.check_keys(data)
+        self.check_data(data)
         title = data['title'] # title preprocessing
         title = self.base_preprocess(title)
         title = self.doc_preprocess(title)
@@ -106,7 +106,7 @@ class DocsPreprocessor(Preprocessor) :
         return data
 
     def for_test(self, data) :
-        self.check_keys(data)
+        self.check_data(data)
         text = data['text']
         text = self.base_preprocess(text)
         text = self.doc_preprocess(text)
