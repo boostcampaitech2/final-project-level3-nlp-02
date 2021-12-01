@@ -1,7 +1,6 @@
 
 import re
 from abc import *
-from datasets.arrow_dataset import Example
 
 class Preprocessor(metaclass=ABCMeta) :
     def __init__(self ) :
@@ -27,7 +26,6 @@ class Preprocessor(metaclass=ABCMeta) :
         return txt.strip()
 
     def check_data(self, data) :
-        assert isinstance(data, Example)
         if 'text' not in data.keys() or 'title' not in data.keys() :
             raise KeyError('Wrong Data keys')
 
@@ -39,14 +37,12 @@ class PaperPreprocessor(Preprocessor) :
     def __init__(self) :
         super().__init__()
         self.bracket_comp = re.compile(r"\([^)]+\)")
-        self.kor_range = range(ord('가'), ord('힣')+1)
 
     def for_train(self, data) :
         self.check_data(data)
         title = data['title'] # title preprocessing
         title = self.add_bracket(title)
         title = self.bracket_comp.sub(' ', title)
-        title = self.remove_descript(title)
         title = self.doc_preprocess(title)
         title = self.strip(title)
 
@@ -72,14 +68,7 @@ class PaperPreprocessor(Preprocessor) :
         if '(' in title and ')' not in title :
             return title + ')'
         else :
-            return title
-
-    def remove_descript(self, title) :
-        for i in range(len(title)-1, 0, -1) :
-            ch = title[i]
-            if ord(ch) in self.kor_range :
-                break
-        return title[:i+1]
+            return title   
 
 class DocsPreprocessor(Preprocessor) :
     def __init__(self) :
@@ -113,3 +102,28 @@ class DocsPreprocessor(Preprocessor) :
         text = self.strip(text)
         data['text'] = text 
         return data
+
+
+class Filter :
+    def __init__(self, title_size) :
+        self.title_size = title_size
+        self.kor_comp = re.compile('[가-힣]')
+
+    def __call__(self, data) :
+        self.check_data(data)
+        if len(data['title']) < self.title_size :
+            return False
+            
+        kor_rate = self.get_kor_rate(data)
+        return True if kor_rate >= 0.7 else False
+
+    def get_kor_rate(self, data) :
+        title = data['title']
+        title = re.sub('\s+' , '', title)
+        kor_chars = self.kor_comp.findall(title)
+        kor_rate = len(kor_chars) / len(title)
+        return kor_rate
+
+    def check_data(self, data) :
+        if 'text' not in data.keys() or 'title' not in data.keys() :
+            raise KeyError('Wrong Data keys')
