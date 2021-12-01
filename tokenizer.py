@@ -2,47 +2,80 @@
 import os
 import json
 import pandas as pd
-from transformers import PreTrainedTokenizerFast
+from transformers import AutoTokenizer
 
 class TokenizerOptimization :
-    def __init__(self, dir_path, word_list) :
-        self.txt_path = os.path.join(dir_path, 'vocab.txt')
-        self.json_path = os.path.join(dir_path, 'tokenizer.json')
-        self.vocab_map = {i: word for i, word in enumerate(word_list)}
+    def __init__(self, dir_path) :
+        self.dir_path = dir_path
+        self.tokenizer_path = os.path.join(dir_path, 'tokenizer.json')
+        self.vocab_path = os.path.join(dir_path, 'vocab.txt')
+        
+    # load tokenizer data
+    def load_tokenizer(self,path) :
+        with open(path, "r") as f:
+            data = json.load(f)
+        return data
 
-    def write_vocab(self, vocab_map) :
-        data_size = len(vocab_map)
-        vocab_list = list(vocab_map.values())
-        f = open(self.txt_path, 'w')
+    # load vocab data
+    def load_vocab(self, path) : 
+        with open(path, "r") as f :
+            data = f.read()
+        idx2vocab = {i:vocab for i, vocab in enumerate(data.split('\n')[:-1])}
+        return idx2vocab
+
+    # update vocab mapping
+    def update_unused(self, idx2vocab, ch_df) :
+        unused_start = 31500
+        
+        size = 0
+        map_id = 0
+        while(size < 500) :
+            ch, flag = ch_df.iloc[map_id][['Character', 'KoreanFlag']]
+
+            target_id = unused_start + size
+            if flag == False :
+                idx2vocab[target_id] = ch
+                size += 1
+            else :
+                if size + 2 >= 500 :
+                    map_id += 1
+                    continue
+
+                idx2vocab[target_id] = ch
+                idx2vocab[target_id+1] = '##' + ch
+                size += 2
+                
+            map_id += 1
+
+        return idx2vocab
+
+    # writing updated vocab
+    def update_vocab(self, idx2vocab, path) :
+        data_size = len(idx2vocab)
+        vocab_list = list(idx2vocab.values())
+        f = open(path, 'w')
         for i in range(data_size):
             f.write(vocab_list[i]+'\n')
         f.close()
 
-    def add_unused(self, vocab_map, tokenizer) :
-        unused_start = tokenizer.convert_tokens_to_ids('[unused0]')
-        unused_end = tokenizer.convert_tokens_to_ids('[unused99]') + 1
+    # writing updated tokenizer
+    def update_tokenizer(self, idx2vocab, tokenizer_data, path) :
+        vocab2idx = {idx2vocab[key] : key for key in idx2vocab.keys()}
+        tokenizer_data['model']['vocab'] = vocab2idx
+        with open(path, 'w') as f:
+            json.dump(tokenizer_data, f)
 
-        unused_size = unused_end - unused_start 
-        for i in range(unused_size) :
-            unused_idx = unused_start + i
-            word = vocab_map[i]
-            vocab_map[unused_idx] = word
 
-    def load_tokenizer_json(self) :
-        with open(self.json_path, "r") as json_data:
-            tokenizer_data = json.load(json_data)
-        return tokenizer_data
+    def optimize(self, extra_ch_path) :
+        ch_df = pd.read_csv(extra_ch_path)
 
-    def write_tokenizer_json(self, tokenizer_data, vocab_data) :
-        inverse_vocab_data = {vocab_data[key] : key for key in vocab_data.keys()}
-        tokenizer_data['model']['vocab'] = inverse_vocab_data
-        with open(self.json_path, 'w') as json_file:
-            json.dump(tokenizer_data, json_file)
+        tokenizer_data = self.load_tokenizer(self.tokenizer_path)
+        idx2vocab = self.load_vocab(self.vocab_path)
 
-    def optimize(self, tokenizer) :
-        assert isinstance(tokenizer, PreTrainedTokenizerFast)
-        self.add_unused(self.vocab_map, tokenizer)
-        self.write_vocab(self.vocab_map)
+        idx2vocab = self.update_unused(idx2vocab, ch_df)
+        self.update_vocab(idx2vocab, self.vocab_path)
+        self.update_tokenizer(idx2vocab, tokenizer_data, self.tokenizer_path)
 
-        tokenizer_data = self.load_tokenizer_json()
-        self.write_tokenizer_json(tokenizer_data, self.vocab_map)
+        tokenizer = AutoTokenizer.from_pretrained(self.dir_path, use_fast=True)
+        return tokenizer
+
