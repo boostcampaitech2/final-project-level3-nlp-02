@@ -30,6 +30,7 @@ class Preprocessor(metaclass=ABCMeta) :
             raise KeyError('Wrong Data keys')
 
     def doc_preprocess(self, txt) :
+        txt = re.sub('[\x02-\x20]', ' ', txt)
         txt = self.outrange_comp.sub(' ', txt)
         return txt
 
