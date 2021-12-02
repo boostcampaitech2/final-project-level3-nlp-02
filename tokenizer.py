@@ -135,12 +135,11 @@ class BartTokenizerOptimization(ToknierOptimization) :
         # load tokenizer data
         tokenizer_data = self.load_json(self.tokenizer_path)
         vocab2idx = self.load_json(self.vocab_path)
-        idx2vocab = {idx:vocab for idx, vocab in vocab2idx.items()}
-        
+        idx2vocab = {idx:vocab for vocab,idx in vocab2idx.items()}
         # update tokenizer
         idx2vocab = self.update_unused(idx2vocab, ch_df)
         vocab2idx = {idx2vocab[key] : key for key in idx2vocab.keys()}
-        vocab_list = list(vocab2idx.values())
+        vocab_list = list(idx2vocab.values())
         
         tokenizer_data['model']['vocab'] = vocab2idx
         tokenizer_data = self.update_added_tokens(tokenizer_data, vocab_list)
