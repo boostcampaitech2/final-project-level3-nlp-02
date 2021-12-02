@@ -5,4 +5,7 @@ Data
 Tokenizer/*.json
 Tokenizer/*.txt
 __pycache__
-.gitignore
+data/**
+wandb/**
+
+Dataloader.ipynb
