@@ -1,2 +1,8 @@
 mecab-0.996-ko-0.9.2/
-
+summarization_law
+Requirements
+Data
+Tokenizer/*.json
+Tokenizer/*.txt
+__pycache__
+.gitignore
