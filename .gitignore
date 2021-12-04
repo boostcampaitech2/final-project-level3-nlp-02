@@ -2,5 +2,6 @@ __pycache__/**
 data/**
 **/wandb/**
 .env
+amc_/kobart-summarization-finetuned-paper-sample-size-1000
 
 Dataloader.ipynb
