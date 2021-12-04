@@ -29,7 +29,7 @@ class CustomSeq2SeqTrainingArguments(Seq2SeqTrainingArguments):
             "*loss, *rouge1, *rouge2, *rougeL, *rougeLsum"}
     )
     eval_steps: Optional[int] = field(
-        default=None,
+        default=500,
         metadata={
             "help" : "Number of update steps between two evaluations"
         },

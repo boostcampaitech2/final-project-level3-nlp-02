@@ -44,7 +44,7 @@ def main():
         (ModelArguments, DataTrainingArguments, LoggingArguments, CustomSeq2SeqTrainingArguments)
     )
     model_args, data_args, log_args, training_args = parser.parse_args_into_dataclasses()
-    breakpoint()
+
     if training_args.do_eval :
         training_args.predict_with_generate = True
     
