@@ -9,11 +9,12 @@ from transformers import (
     HfArgumentParser
 )
 
-from arguments import (
+from args import (
     ModelArguments,
     DataTrainingArguments,
-    GenArguments
+    GenerationArguments
 )
+
 
 @contextmanager
 def timer(name) :
@@ -23,7 +24,7 @@ def timer(name) :
 
 def main() :
     parser = HfArgumentParser(
-        (ModelArguments, DataTrainingArguments, GenArguments)
+        (ModelArguments, DataTrainingArguments, GenerationArguments)
     )
     model_args, data_args, generation_args = parser.parse_args_into_dataclasses()
 

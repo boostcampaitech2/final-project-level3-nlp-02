@@ -1,5 +1,10 @@
 import os
+import random
+from dotenv import load_dotenv
+
+import numpy as np
 import torch
+import wandb
 
 from functools import partial
 from transformers import (
@@ -8,22 +13,30 @@ from transformers import (
     AutoModelForSeq2SeqLM,
     HfArgumentParser,
     DataCollatorForSeq2Seq,
-    Seq2SeqTrainer,
-    Seq2SeqTrainingArguments,
-    set_seed
+    Seq2SeqTrainer
 )
 
-from arguments import (
-    ModelArguments,
+from args import (
+    Seq2SeqTrainingArguments,
     DataTrainingArguments,
     LoggingArguments,
+    ModelArguments
 )
 
 from transformers.trainer_utils import get_last_checkpoint
-
 from dataloader import SumDataset
 from processor import preprocess_function
 from rouge import compute_metrics
+
+
+def seed_everything(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    np.random.seed(seed)
+    random.seed(seed)
 
 
 def main():
@@ -32,9 +45,15 @@ def main():
     )
     model_args, data_args, log_args, training_args = parser.parse_args_into_dataclasses()
     
+    ## default: do train
+    training_args.do_train=True
+    if training_args.do_eval :
+        training_args.do_train=False
 
-    print(f"model is from {model_args.model_name_or_path}")
-    print(f"data is from {data_args.dataset_name}")
+    print(f"** Train mode: { training_args.do_train}")
+    print(f"** model is from {model_args.model_name_or_path}")
+    print(f"** data is from {data_args.dataset_name}")
+    print(f'** max_target_length:', data_args.max_target_length)
 
     last_checkpoint = None
     if os.path.isdir(training_args.output_dir) and training_args.do_train and not training_args.overwrite_output_dir:
@@ -44,8 +63,7 @@ def main():
                 f"Output directory ({training_args.output_dir}) already exists and is not empty. "
                 "Use --overwrite_output_dir to overcome."
             )
-    
-    set_seed(training_args.seed)
+    seed_everything(training_args.seed)
 
     types = data_args.dataset_name.split(',')
     data_args.dataset_name = ['metamong1/summarization_' + dt for dt in types]
@@ -59,12 +77,7 @@ def main():
     if training_args.do_train:
         column_names = train_dataset.column_names
     elif training_args.do_eval:
-        training_args.predict_with_generate = True
         column_names = valid_dataset.column_names
-
-    print('max_target_length:', data_args.max_target_length)
-    print('predict_with_generate:', training_args.predict_with_generate)
-    
 
     config = AutoConfig.from_pretrained(
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,
@@ -108,7 +121,20 @@ def main():
         pad_to_multiple_of=8 if training_args.fp16 else None,
     )
     
+    # wandb
+    load_dotenv(dotenv_path=log_args.dotenv_path)
+    WANDB_AUTH_KEY = os.getenv("WANDB_AUTH_KEY")
+    wandb.login(key=WANDB_AUTH_KEY)
+
+    wandb.init(
+        entity="final_project",
+        project=log_args.project_name,
+        name=log_args.wandb_unique_tag
+    )
+    wandb.config.update(training_args)
+
     comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
+    breakpoint()
     trainer = Seq2SeqTrainer(
         model=model,
         args=training_args,
@@ -116,7 +142,7 @@ def main():
         eval_dataset=valid_dataset if training_args.do_eval else None,
         tokenizer=tokenizer,
         data_collator=data_collator,
-        compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
+        compute_metrics=comp_met_fn if training_args.do_eval else None,
     )
 
     if training_args.do_train:

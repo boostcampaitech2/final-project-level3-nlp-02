@@ -1,12 +1,17 @@
-import torch
 from typing import List
 from torch.utils.data import Dataset
-
-
-from datasets import load_dataset, concatenate_datasets
-
+from datasets import (
+    load_dataset,
+    concatenate_datasets
+)
 
 class SumDataset(Dataset) :
+    """ 
+    Summarization 여러 데이터셋을 merge하여 사용하기 위한 class.
+    Args:
+        data_types (List[str]): 업로드한 huggingface datasets 중, 원하는 datasets 이름의 list
+        mode (str): train or validation 선택하는 변수
+    """
     def __init__(self,
         data_types: List[str],
         mode: str

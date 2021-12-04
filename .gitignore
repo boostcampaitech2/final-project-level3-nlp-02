@@ -1,5 +1,7 @@
+args/__pycache__
 __pycache__/**
 data/**
 wandb/**
 
-Dataloader.ipynb
+wandb.env
+*.ipynb
