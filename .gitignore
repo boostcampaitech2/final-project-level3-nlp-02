@@ -5,3 +5,4 @@ wandb/**
 
 wandb.env
 *.ipynb
+Attention_viz.ipynb

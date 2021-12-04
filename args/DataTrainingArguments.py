@@ -23,7 +23,7 @@ class DataTrainingArguments:
         metadata={"help": "Overwrite the cached training and evaluation sets"},
     )
     preprocessing_num_workers: Optional[int] = field(
-        default=2,
+        default=4,
         metadata={"help": "The number of processes to use for the preprocessing."},
     )
     max_source_length: int = field(
@@ -34,14 +34,14 @@ class DataTrainingArguments:
         },
     )
     max_target_length: int = field(
-        default=256,
+        default=128,
         metadata={
             "help": "The maximum total input sequence length after tokenization. Sequences longer "
             "than this will be truncated, sequences shorter will be padded."
         },
     )
     val_max_target_length: Optional[int] = field(
-        default=256,
+        default=128,
         metadata={
             "help": "The maximum total sequence length for validation target text after tokenization. Sequences longer "
             "than this will be truncated, sequences shorter will be padded. Will default to `max_target_length`."

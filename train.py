@@ -1,5 +1,6 @@
 import os
 import random
+import math
 from dotenv import load_dotenv
 
 import numpy as np
@@ -13,14 +14,15 @@ from transformers import (
     AutoModelForSeq2SeqLM,
     HfArgumentParser,
     DataCollatorForSeq2Seq,
-    Seq2SeqTrainer
+    Seq2SeqTrainer,
+    EarlyStoppingCallback
 )
 
 from args import (
-    Seq2SeqTrainingArguments,
     DataTrainingArguments,
     LoggingArguments,
-    ModelArguments
+    ModelArguments,
+    CustomSeq2SeqTrainingArguments
 )
 
 from transformers.trainer_utils import get_last_checkpoint
@@ -41,16 +43,21 @@ def seed_everything(seed):
 
 def main():
     parser = HfArgumentParser(
-        (ModelArguments, DataTrainingArguments, LoggingArguments, Seq2SeqTrainingArguments)
+        (ModelArguments, DataTrainingArguments, LoggingArguments, CustomSeq2SeqTrainingArguments)
     )
     model_args, data_args, log_args, training_args = parser.parse_args_into_dataclasses()
+    breakpoint()
+    # training_args.save_total_limit = 6
+    # training_args.metric_for_best_model = "rouge_l" ###
+    # training_args.eval_steps = 500
+    # training_args.load_best_model_at_end = True
     
     ## default: do train
     training_args.do_train=True
     if training_args.do_eval :
         training_args.do_train=False
         training_args.predict_with_generate = True
-
+    
     print(f"** Train mode: { training_args.do_train}")
     print(f"** model is from {model_args.model_name_or_path}")
     print(f"** data is from {data_args.dataset_name}")
@@ -66,17 +73,15 @@ def main():
             )
     seed_everything(training_args.seed)
 
-    types = data_args.dataset_name.split(',')
-    data_args.dataset_name = ['metamong1/summarization_' + dt for dt in types]
-    
-    train_dataset = SumDataset(data_args.dataset_name, 'train').load_data()
+    train_dataset = SumDataset(data_args.dataset_name, 'train').load_data()    
     valid_dataset = SumDataset(data_args.dataset_name, 'validation').load_data()
+    # train_dataset = train_dataset.select(range(50))
+    print(f"train_dataset length: {len(train_dataset)}")
+    print(f"valid_dataset length: {len(valid_dataset)}")
     
-    if training_args.do_train:
-        column_names = train_dataset.column_names
-    elif training_args.do_eval:
-        column_names = valid_dataset.column_names
-
+    iterations =  training_args.epoch*math.ceil(len(train_dataset)/training_args.per_device_train_batch_size)
+    training_args.eval_steps = iterations // 10
+    
     config = AutoConfig.from_pretrained(
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir ##
@@ -92,8 +97,16 @@ def main():
         config=config,
         cache_dir=model_args.cache_dir
     )
-
+    
+    types = data_args.dataset_name.split(',')
+    data_args.dataset_name = ['metamong1/summarization_' + dt for dt in types]
+    
     prep_fn  = partial(preprocess_function, tokenizer=tokenizer, data_args=data_args)
+    if training_args.do_train:
+        column_names = train_dataset.column_names
+    elif training_args.do_eval:
+        column_names = valid_dataset.column_names
+    
     train_dataset = train_dataset.map(
         prep_fn,
         batched=True,
@@ -110,6 +123,7 @@ def main():
         load_from_cache_file=not data_args.overwrite_cache,
         desc="Running tokenizer on validation dataset",
     )
+
 
     label_pad_token_id = -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
     data_collator = DataCollatorForSeq2Seq(
@@ -130,16 +144,17 @@ def main():
         name=log_args.wandb_unique_tag
     )
     wandb.config.update(training_args)
-
+    
     comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
     trainer = Seq2SeqTrainer(
         model=model,
         args=training_args,
-        train_dataset=train_dataset if training_args.do_train else None,
-        eval_dataset=valid_dataset if training_args.do_eval else None,
+        train_dataset=train_dataset, # if training_args.do_train else None,
+        eval_dataset=valid_dataset, # if training_args.do_eval else None,
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
+        callbacks = [EarlyStoppingCallback(early_stopping_patience=3)] ## if 
     )
 
     if training_args.do_train:
@@ -165,7 +180,7 @@ def main():
 
     max_length = (training_args.generation_max_length
         if training_args.generation_max_length is not None
-        else data_args.val_max_target_length)
+        else data_args.max_target_length)
     results = {}
     
     num_beams = data_args.num_beams if data_args.num_beams is not None else training_args.generation_num_beams
