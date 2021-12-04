@@ -33,7 +33,6 @@ def compute_metrics(eval_preds, tokenizer, data_args):
 	preds, labels = eval_preds
 	if isinstance(preds, tuple):
 		preds = preds[0]
-	breakpoint()
 	decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
 	if data_args.ignore_pad_token_for_loss:
 		# Replace -100 in the labels as we can't decode them.
@@ -51,6 +50,7 @@ def compute_metrics(eval_preds, tokenizer, data_args):
 
 class CustomRouge(rouge_scorer.RougeScorer) :
 	""" 
+	https://github.com/google-research/google-research/blob/master/rouge
 	google-research의 RougeScorer를 상속.
 	한국어 tokenizer를 적용한 rouge score를 계산하도록 custom.
 	Args:

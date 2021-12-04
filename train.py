@@ -49,6 +49,7 @@ def main():
     training_args.do_train=True
     if training_args.do_eval :
         training_args.do_train=False
+        training_args.predict_with_generate = True
 
     print(f"** Train mode: { training_args.do_train}")
     print(f"** model is from {model_args.model_name_or_path}")
@@ -69,10 +70,7 @@ def main():
     data_args.dataset_name = ['metamong1/summarization_' + dt for dt in types]
     
     train_dataset = SumDataset(data_args.dataset_name, 'train').load_data()
-    train_dataset = train_dataset.select(range(500)) ## test
-
     valid_dataset = SumDataset(data_args.dataset_name, 'validation').load_data()
-    valid_dataset = valid_dataset.select(range(500)) ## test
     
     if training_args.do_train:
         column_names = train_dataset.column_names
@@ -134,7 +132,6 @@ def main():
     wandb.config.update(training_args)
 
     comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
-    breakpoint()
     trainer = Seq2SeqTrainer(
         model=model,
         args=training_args,
@@ -142,7 +139,7 @@ def main():
         eval_dataset=valid_dataset if training_args.do_eval else None,
         tokenizer=tokenizer,
         data_collator=data_collator,
-        compute_metrics=comp_met_fn if training_args.do_eval else None,
+        compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
     )
 
     if training_args.do_train:
