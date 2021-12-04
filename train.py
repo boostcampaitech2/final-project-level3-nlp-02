@@ -44,10 +44,9 @@ def main():
         (ModelArguments, DataTrainingArguments, LoggingArguments, CustomSeq2SeqTrainingArguments)
     )
     model_args, data_args, log_args, training_args = parser.parse_args_into_dataclasses()
-
     if training_args.do_eval :
         training_args.predict_with_generate = True
-    
+
     print(f"** Train mode: { training_args.do_train}")
     print(f"** model is from {model_args.model_name_or_path}")
     print(f"** data is from {data_args.dataset_name}")
@@ -71,11 +70,13 @@ def main():
     
     train_dataset = SumDataset(data_args.dataset_name, 'train', USE_AUTH_TOKEN=USE_AUTH_TOKEN).load_data()
     valid_dataset = SumDataset(data_args.dataset_name, 'validation', USE_AUTH_TOKEN=USE_AUTH_TOKEN).load_data()
-
-    iterations =  training_args.num_train_epochs*math.ceil(len(train_dataset)/training_args.per_device_train_batch_size)
-    training_args.eval_steps = int(iterations // 10) ## dataset 크기에 상대적 eval step 적용 => 원하는 eval 횟수는 10인 분모를 바꾸어주면 됨 
     # train_dataset.cleanup_cache_files()
     # valid_dataset.cleanup_cache_files()
+
+    if training_args.relative_eval_steps :
+        iterations =  training_args.num_train_epochs*math.ceil(len(train_dataset)/training_args.per_device_train_batch_size)
+        training_args.eval_steps = int(iterations // training_args.relative_eval_steps) ## dataset 크기에 상대적 eval step 적용
+        training_args.save_steps = training_args.eval_steps
 
     print(f"train_dataset length: {len(train_dataset)}")
     print(f"valid_dataset length: {len(valid_dataset)}")
