@@ -143,7 +143,7 @@ class LoggingArguments:
     )
 
     project_name: Optional[str] = field(
-        default="mrc_project_1",
+        default="final_project",
         metadata={"help": "project name"},
     )
 
