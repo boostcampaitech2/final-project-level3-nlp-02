@@ -54,3 +54,6 @@ apt install curl
 apt install git
 bash <(curl -s https://raw.githubusercontent.com/konlpy/konlpy/master/scripts/mecab.sh)
 pip install mecab-python
+
+
+
