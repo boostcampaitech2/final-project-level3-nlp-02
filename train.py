@@ -30,7 +30,6 @@ from transformers.trainer_utils import get_last_checkpoint
 from processor import preprocess_function
 from rouge import compute_metrics
 
-
 def seed_everything(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
@@ -40,13 +39,12 @@ def seed_everything(seed):
     np.random.seed(seed)
     random.seed(seed)
 
-
 def main():
     parser = HfArgumentParser(
         (ModelArguments, DataTrainingArguments, LoggingArguments, CustomSeq2SeqTrainingArguments)
     )
     model_args, data_args, log_args, training_args = parser.parse_args_into_dataclasses()
-
+    breakpoint()
     if training_args.do_eval :
         training_args.predict_with_generate = True
     
@@ -71,20 +69,17 @@ def main():
     load_dotenv(dotenv_path=data_args.use_auth_token_path)
     USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")
     
-
     train_dataset = SumDataset(data_args.dataset_name, 'train', USE_AUTH_TOKEN=USE_AUTH_TOKEN).load_data()
     valid_dataset = SumDataset(data_args.dataset_name, 'validation', USE_AUTH_TOKEN=USE_AUTH_TOKEN).load_data()
-    train_dataset = train_dataset.select(range(8000))
-    valid_dataset = valid_dataset.select(range(80))
+
     iterations =  training_args.num_train_epochs*math.ceil(len(train_dataset)/training_args.per_device_train_batch_size)
-    training_args.eval_steps = int(iterations // 10)
-    train_dataset.cleanup_cache_files()
-    valid_dataset.cleanup_cache_files()
+    training_args.eval_steps = int(iterations // 10) ## dataset 크기에 상대적 eval step 적용 => 원하는 eval 횟수는 10인 분모를 바꾸어주면 됨 
+    # train_dataset.cleanup_cache_files()
+    # valid_dataset.cleanup_cache_files()
 
     print(f"train_dataset length: {len(train_dataset)}")
     print(f"valid_dataset length: {len(valid_dataset)}")
     print(f"eval_steps: {training_args.eval_steps}")
-    training_args.eval_steps = 20 ###
 
     config = AutoConfig.from_pretrained(
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,

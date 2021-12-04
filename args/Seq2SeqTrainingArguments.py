@@ -9,12 +9,12 @@ class CustomSeq2SeqTrainingArguments(Seq2SeqTrainingArguments):
     """
     save_strategy : str = field(
         default="steps",
-        metadata={"help": ""
+        metadata={"help": "save strategy to adopt during training"
         }
     )
     save_steps : int = field(
         default=500,
-        metadata={"help": ""
+        metadata={"help": "Number of updates steps before two checkpoint saves"
         }
     )
     save_total_limit: int = field(
@@ -25,13 +25,13 @@ class CustomSeq2SeqTrainingArguments(Seq2SeqTrainingArguments):
     metric_for_best_model: str = field(
         default="rougeLsum",
         metadata={
-            "help": "to specify the metric to use to compare two different models"}
+            "help": "to specify the metric to use to compare two different models"
+            "*loss, *rouge1, *rouge2, *rougeL, *rougeLsum"}
     )
     eval_steps: Optional[int] = field(
-        default=500,
+        default=None,
         metadata={
-            "help": "The `max_length` to use on each evaluation loop when `predict_with_generate=True`. Will default "
-            "to the `max_length` value of the model configuration."
+            "help" : "Number of update steps between two evaluations"
         },
     )
     evaluation_strategy: str = field(

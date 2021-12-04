@@ -1,7 +1,7 @@
-args/__pycache__
 __pycache__/**
-data/**
+args/__pycache__
 wandb/**
+model/**
 
 *.env
 *.ipynb
