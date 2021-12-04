@@ -69,8 +69,11 @@ def main():
     types = data_args.dataset_name.split(',')
     data_args.dataset_name = ['metamong1/summarization_' + dt for dt in types]
     
-    train_dataset = SumDataset(data_args.dataset_name, 'train').load_data()
-    valid_dataset = SumDataset(data_args.dataset_name, 'validation').load_data()
+    load_dotenv(dotenv_path=data_args.use_auth_token_path)
+    USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")
+    
+    train_dataset = SumDataset(data_args.dataset_name, 'train', USE_AUTH_TOKEN=USE_AUTH_TOKEN).load_data()
+    valid_dataset = SumDataset(data_args.dataset_name, 'validation', USE_AUTH_TOKEN=USE_AUTH_TOKEN).load_data()
     
     if training_args.do_train:
         column_names = train_dataset.column_names
