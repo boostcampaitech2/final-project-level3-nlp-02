@@ -25,8 +25,8 @@ from args import (
     CustomSeq2SeqTrainingArguments
 )
 
-from transformers.trainer_utils import get_last_checkpoint
 from dataloader import SumDataset
+from transformers.trainer_utils import get_last_checkpoint
 from processor import preprocess_function
 from rouge import compute_metrics
 
@@ -46,16 +46,8 @@ def main():
         (ModelArguments, DataTrainingArguments, LoggingArguments, CustomSeq2SeqTrainingArguments)
     )
     model_args, data_args, log_args, training_args = parser.parse_args_into_dataclasses()
-    breakpoint()
-    # training_args.save_total_limit = 6
-    # training_args.metric_for_best_model = "rouge_l" ###
-    # training_args.eval_steps = 500
-    # training_args.load_best_model_at_end = True
-    
-    ## default: do train
-    training_args.do_train=True
+
     if training_args.do_eval :
-        training_args.do_train=False
         training_args.predict_with_generate = True
     
     print(f"** Train mode: { training_args.do_train}")
@@ -73,18 +65,30 @@ def main():
             )
     seed_everything(training_args.seed)
 
-    train_dataset = SumDataset(data_args.dataset_name, 'train').load_data()    
-    valid_dataset = SumDataset(data_args.dataset_name, 'validation').load_data()
-    # train_dataset = train_dataset.select(range(50))
+    types = data_args.dataset_name.split(',')
+    data_args.dataset_name = ['metamong1/summarization_' + dt for dt in types]
+    
+    load_dotenv(dotenv_path=data_args.use_auth_token_path)
+    USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")
+    
+
+    train_dataset = SumDataset(data_args.dataset_name, 'train', USE_AUTH_TOKEN=USE_AUTH_TOKEN).load_data()
+    valid_dataset = SumDataset(data_args.dataset_name, 'validation', USE_AUTH_TOKEN=USE_AUTH_TOKEN).load_data()
+    train_dataset = train_dataset.select(range(8000))
+    valid_dataset = valid_dataset.select(range(80))
+    iterations =  training_args.num_train_epochs*math.ceil(len(train_dataset)/training_args.per_device_train_batch_size)
+    training_args.eval_steps = int(iterations // 10)
+    train_dataset.cleanup_cache_files()
+    valid_dataset.cleanup_cache_files()
+
     print(f"train_dataset length: {len(train_dataset)}")
     print(f"valid_dataset length: {len(valid_dataset)}")
-    
-    iterations =  training_args.epoch*math.ceil(len(train_dataset)/training_args.per_device_train_batch_size)
-    training_args.eval_steps = iterations // 10
-    
+    print(f"eval_steps: {training_args.eval_steps}")
+    training_args.eval_steps = 20 ###
+
     config = AutoConfig.from_pretrained(
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,
-        cache_dir=model_args.cache_dir ##
+        cache_dir=model_args.cache_dir
     )
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
@@ -98,9 +102,6 @@ def main():
         cache_dir=model_args.cache_dir
     )
     
-    types = data_args.dataset_name.split(',')
-    data_args.dataset_name = ['metamong1/summarization_' + dt for dt in types]
-    
     prep_fn  = partial(preprocess_function, tokenizer=tokenizer, data_args=data_args)
     if training_args.do_train:
         column_names = train_dataset.column_names
@@ -113,6 +114,7 @@ def main():
         num_proc=data_args.preprocessing_num_workers,
         remove_columns=column_names,
         load_from_cache_file=not data_args.overwrite_cache,
+        desc="Running tokenizer on train dataset",
     )
 
     valid_dataset = valid_dataset.map(
@@ -123,7 +125,6 @@ def main():
         load_from_cache_file=not data_args.overwrite_cache,
         desc="Running tokenizer on validation dataset",
     )
-
 
     label_pad_token_id = -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
     data_collator = DataCollatorForSeq2Seq(
@@ -154,7 +155,7 @@ def main():
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
-        callbacks = [EarlyStoppingCallback(early_stopping_patience=3)] ## if 
+        callbacks = [EarlyStoppingCallback(early_stopping_patience=training_args.es_patience)] if training_args.es_patience else None
     )
 
     if training_args.do_train:
@@ -164,7 +165,7 @@ def main():
         elif last_checkpoint is not None:
             checkpoint = last_checkpoint
         train_result = trainer.train(resume_from_checkpoint=checkpoint)
-        print("#########Train result: ",train_result)
+        print("#########Train result: #########", train_result)
         trainer.save_model()
 
         metrics = train_result.metrics
@@ -177,7 +178,6 @@ def main():
         trainer.save_metrics("train", metrics)
         trainer.save_state()
 
-
     max_length = (training_args.generation_max_length
         if training_args.generation_max_length is not None
         else data_args.max_target_length)
@@ -186,7 +186,7 @@ def main():
     num_beams = data_args.num_beams if data_args.num_beams is not None else training_args.generation_num_beams
     if training_args.do_eval:
         metrics = trainer.evaluate(max_length=max_length, num_beams=num_beams, metric_key_prefix="eval")
-        print("#########Eval metrics: #########",metrics) 
+        print("#########Eval metrics: #########", metrics) 
         max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(valid_dataset)
         metrics["eval_samples"]=min(max_eval_samples, len(valid_dataset))
 

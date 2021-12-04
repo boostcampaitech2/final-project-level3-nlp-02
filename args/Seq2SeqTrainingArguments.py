@@ -7,13 +7,23 @@ class CustomSeq2SeqTrainingArguments(Seq2SeqTrainingArguments):
     """
     Early stopping 및 파일 scheduling을 위한 arguments 선정
     """
+    save_strategy : str = field(
+        default="steps",
+        metadata={"help": ""
+        }
+    )
+    save_steps : int = field(
+        default=500,
+        metadata={"help": ""
+        }
+    )
     save_total_limit: int = field(
-        default=6,
+        default=5,
         metadata={"help": "If a value is passed, will limit the total amount of checkpoints."
         "Deletes the older checkpoints in :obj:`output_dir`."}
     )
     metric_for_best_model: str = field(
-        default="rouge_l",
+        default="rougeLsum",
         metadata={
             "help": "to specify the metric to use to compare two different models"}
     )
@@ -38,7 +48,13 @@ class CustomSeq2SeqTrainingArguments(Seq2SeqTrainingArguments):
     )
     logging_steps: int = field(
         default=1000,
-        metadata={
+        metadata={  
             "help": ""
+        },
+    )
+    es_patience: int = field(
+        default=5,
+        metadata={  
+            "help": "early stopping patience"
         },
     )

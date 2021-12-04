@@ -91,3 +91,9 @@ class DataTrainingArguments:
             "help": "Whether to ignore the tokens corresponding to padded labels in the loss computation or not."
         },
     )
+    use_auth_token_path: Optional[str] = field(
+        default='./use_auth_token.env',
+        metadata={"help":'input your use_auth_token path'},
+    )
+    
+    

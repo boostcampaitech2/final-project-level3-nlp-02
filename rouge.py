@@ -58,7 +58,7 @@ class CustomRouge(rouge_scorer.RougeScorer) :
 		tokenizer (PreTrainedTokenizerBase): 모델에 맞는 tokenizer
 	"""
 	def __init__(self, rouge_types, tokenizer) :
-		super().__init__()
+		super(CustomRouge).__init__()
 		self.rouge_types = rouge_types
 		self.tokenizer = tokenizer
 

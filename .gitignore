@@ -3,6 +3,5 @@ __pycache__/**
 data/**
 wandb/**
 
-wandb.env
+*.env
 *.ipynb
-Attention_viz.ipynb
