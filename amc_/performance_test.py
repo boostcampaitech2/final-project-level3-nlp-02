@@ -11,6 +11,7 @@ import argparse
 
 from performanceBenchmark import PerformanceBenchmark
 
+
 load_dotenv(verbose=True)
 
 def performance_test(
@@ -27,7 +28,7 @@ def performance_test(
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     api_token = os.getenv('HF_DATASET_API_TOKEN')
     if args:
-        check_point = args.checkpoint  # 'kobart-summarization-finetuned-paper-sample-size-1000/checkpoint-1000'
+        check_point = args.check_point  # 'kobart-summarization-finetuned-paper-sample-size-1000/checkpoint-1000'
         test_dataset = args.test_dataset
         test_dataset_size = args.test_dataset_size
         cpu_flag = args.cpu_flag
@@ -77,7 +78,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--checkpoint', type=str, default='gogamza/kobart-summarization', help='model checkpoint (default: gogamza/kobart-summarization)')
+    parser.add_argument('--check_point', type=str, default='gogamza/kobart-summarization', help='model checkpoint (default: gogamza/kobart-summarization)')
     parser.add_argument('--test_dataset', type=str, default='metamong1/summarization_paper', help='test dataset (default: metamong1/summarization_paper)')
     parser.add_argument('--test_dataset_size', type=int, default=100, help='test dataset size (defualt: 100)')
     parser.add_argument('--cpu_flag', action='store_true', help='use cpu (default: gpu)')
