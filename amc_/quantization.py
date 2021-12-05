@@ -47,9 +47,15 @@ def half_quantization(
 ):
     if model:
         model.half()
+        for layer in model.modules():
+            if isinstance(layer, nn.BatchNorm2d):
+                layer.float()
     elif check_point:
         model = AutoModelForSeq2SeqLM.from_pretrained(check_point)
         model.half()
+        for layer in model.modules():
+            if isinstance(layer, nn.BatchNorm2d):
+                layer.float()
     
     if test:
         performance_test.performance_test(
