@@ -1,6 +1,5 @@
-mecab-0.996-ko-0.9.2/
+__pycache__
 Requirements
+Data
 wandb
 args
-Data
-__pycache__
