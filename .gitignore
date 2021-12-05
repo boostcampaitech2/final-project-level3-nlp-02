@@ -5,4 +5,10 @@ Data
 Tokenizer/*.json
 Tokenizer/*.txt
 __pycache__
-.gitignore
+
+args/__pycache__
+wandb/**
+model/**
+
+*.env
+*.ipynb
