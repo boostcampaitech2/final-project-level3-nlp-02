@@ -79,7 +79,7 @@ def main():
     valid_dataset.cleanup_cache_files() # 전처리 실험을 위해서 cache 지우기
 
     print('\nData Filtering')
-    data_filter = Filter(title_size=5)
+    data_filter = Filter(min_size=5, max_size=80)
     train_dataset = train_dataset.filter(data_filter)
     valid_dataset = valid_dataset.filter(data_filter)
 

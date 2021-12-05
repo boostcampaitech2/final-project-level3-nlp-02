@@ -32,7 +32,7 @@ class Preprocessor(metaclass=ABCMeta) :
         txt = self.outrange_comp.sub(' ', txt)
         return txt
 
-class PaperPreprocessor(Preprocessor) :
+class DocsPreprocessor(Preprocessor) :
     def __init__(self) :
         super().__init__()
         self.bracket_comp = re.compile(r"\([^)]+\)")
@@ -40,7 +40,6 @@ class PaperPreprocessor(Preprocessor) :
     def for_train(self, data) :
         self.check_data(data)
         title = data['title']
-        title = self.add_bracket(title)
         title = self.bracket_comp.sub(' ', title)
         title = self.doc_preprocess(title)
         title = self.strip(title)
@@ -63,58 +62,17 @@ class PaperPreprocessor(Preprocessor) :
         data['text'] = text 
         return data
 
-    def add_bracket(self, title) :
-        if '(' in title and ')' not in title :
-            return title + ')'
-        else :
-            return title   
-
-class DocsPreprocessor(Preprocessor) :
-    def __init__(self) :
-        super().__init__()
-
-    def for_train(self, data) :
-        self.check_data(data)
-        title = data['title'] # title preprocessing
-        title = self.doc_preprocess(title)
-        title = self.strip(title)
-
-        text = data['text'] # text preprocessing
-        text = self.doc_preprocess(text)
-        text = self.strip(text)
-
-        data['text'] = text 
-        data['title'] = title
-        return data
-
-    def for_test(self, data) :
-        self.check_data(data)
-        text = data['text']
-        text = self.doc_preprocess(text)
-        text = self.strip(text)
-        data['text'] = text 
-        return data
-
 
 class Filter :
-    def __init__(self, title_size) :
-        self.title_size = title_size
-        self.kor_comp = re.compile('[가-힣]')
+    def __init__(self, min_size, max_size) :
+        self.min_size = min_size
+        self.max_size = max_size
 
     def __call__(self, data) :
         self.check_data(data)
-        if len(data['title']) < self.title_size :
+        if len(data['title']) < self.min_size or len(data['title']) > self.max_size:
             return False
-            
-        kor_rate = self.get_kor_rate(data)
-        return True if kor_rate >= 0.5 else False
-
-    def get_kor_rate(self, data) :
-        title = data['title']
-        title = re.sub('\s+' , '', title)
-        kor_chars = self.kor_comp.findall(title)
-        kor_rate = len(kor_chars) / len(title)
-        return kor_rate
+        return True
 
     def check_data(self, data) :
         if 'text' not in data.keys() or 'title' not in data.keys() :
