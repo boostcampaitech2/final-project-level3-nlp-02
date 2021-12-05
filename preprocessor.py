@@ -7,7 +7,6 @@ class Preprocessor(metaclass=ABCMeta) :
         # 일본어, 한국어, 한자, 기본 문자, 구두점, 문장 기호
         self.outrange_comp = re.compile('[^\u3040-\u30ff\
             \uac00-\ud7af\
-            \uac00-\ud7af\
             \u4e00-\u9fff\
             \u0000-\u007f\
             \u2000-\u206f\
@@ -30,7 +29,6 @@ class Preprocessor(metaclass=ABCMeta) :
             raise KeyError('Wrong Data keys')
 
     def doc_preprocess(self, txt) :
-        txt = re.sub('[\x02-\x20]', ' ', txt)
         txt = self.outrange_comp.sub(' ', txt)
         return txt
 
@@ -41,13 +39,13 @@ class PaperPreprocessor(Preprocessor) :
 
     def for_train(self, data) :
         self.check_data(data)
-        title = data['title'] # title preprocessing
+        title = data['title']
         title = self.add_bracket(title)
         title = self.bracket_comp.sub(' ', title)
         title = self.doc_preprocess(title)
         title = self.strip(title)
 
-        text = data['text'] # text preprocessing
+        text = data['text']
         text = self.bracket_comp.sub(' ', text)
         text = self.doc_preprocess(text)
         text = self.strip(text)
@@ -75,19 +73,13 @@ class DocsPreprocessor(Preprocessor) :
     def __init__(self) :
         super().__init__()
 
-    def base_preprocess(self, text) :
-        text = re.sub(r'\n', ' ', text)
-        return text
-
     def for_train(self, data) :
         self.check_data(data)
         title = data['title'] # title preprocessing
-        title = self.base_preprocess(title)
         title = self.doc_preprocess(title)
         title = self.strip(title)
 
         text = data['text'] # text preprocessing
-        text = self.base_preprocess(text)
         text = self.doc_preprocess(text)
         text = self.strip(text)
 
@@ -98,7 +90,6 @@ class DocsPreprocessor(Preprocessor) :
     def for_test(self, data) :
         self.check_data(data)
         text = data['text']
-        text = self.base_preprocess(text)
         text = self.doc_preprocess(text)
         text = self.strip(text)
         data['text'] = text 
@@ -116,7 +107,7 @@ class Filter :
             return False
             
         kor_rate = self.get_kor_rate(data)
-        return True if kor_rate >= 0.7 else False
+        return True if kor_rate >= 0.5 else False
 
     def get_kor_rate(self, data) :
         title = data['title']

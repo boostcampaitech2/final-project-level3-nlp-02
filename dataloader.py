@@ -1,5 +1,6 @@
 from typing import List
 from torch.utils.data import Dataset
+from preprocessor import DocsPreprocessor, PaperPreprocessor
 from datasets import (
     load_dataset,
     concatenate_datasets
@@ -19,8 +20,19 @@ class SumDataset(Dataset) :
     ) :
         self.dataset = []
         self.mode=mode
-        for data_type in data_types :
-            self.dataset.append(load_dataset(data_type, use_auth_token=USE_AUTH_TOKEN))
+
+        for data_type in data_types :          
+            data_preprocessor = PaperPreprocessor() if 'paper' in data_type else DocsPreprocessor()
+            dataset_idx = load_dataset(data_type, use_auth_token=USE_AUTH_TOKEN)
+
+            if mode == 'test' :
+                dataset_idx = dataset_idx.map(data_preprocessor.for_test)
+            else :
+                dataset_idx = dataset_idx.map(data_preprocessor.for_train)
+
+            dataset_idx.cleanup_cache_files() # 전처리 성능 실험을 위해서 cache 지우는 과정
+            self.dataset.append(dataset_idx)
+
     def load_data(self):
         dataset = concatenate_datasets([ds[self.mode] for ds in self.dataset])
         return dataset

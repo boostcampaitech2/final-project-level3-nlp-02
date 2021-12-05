@@ -26,7 +26,9 @@ from args import (
 )
 
 from dataloader import SumDataset
+from preprocessor import Filter
 from transformers.trainer_utils import get_last_checkpoint
+
 from processor import preprocess_function
 from rouge import compute_metrics
 
@@ -68,10 +70,18 @@ def main():
     load_dotenv(dotenv_path=data_args.use_auth_token_path)
     USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")
     
+    print('\nLoad Train Dataset')
     train_dataset = SumDataset(data_args.dataset_name, 'train', USE_AUTH_TOKEN=USE_AUTH_TOKEN).load_data()
+    train_dataset.cleanup_cache_files() # 전처리 실험을 위해서 cache 지우기
+
+    print('\nLoad Validation Dataset')
     valid_dataset = SumDataset(data_args.dataset_name, 'validation', USE_AUTH_TOKEN=USE_AUTH_TOKEN).load_data()
-    # train_dataset.cleanup_cache_files()
-    # valid_dataset.cleanup_cache_files()
+    valid_dataset.cleanup_cache_files() # 전처리 실험을 위해서 cache 지우기
+
+    print('\nData Filtering')
+    data_filter = Filter(title_size=5)
+    train_dataset = train_dataset.filter(data_filter)
+    valid_dataset = valid_dataset.filter(data_filter)
 
     if training_args.relative_eval_steps :
         iterations =  training_args.num_train_epochs*math.ceil(len(train_dataset)/training_args.per_device_train_batch_size)
@@ -103,7 +113,7 @@ def main():
         column_names = train_dataset.column_names
     elif training_args.do_eval:
         column_names = valid_dataset.column_names
-    
+
     train_dataset = train_dataset.map(
         prep_fn,
         batched=True,
@@ -146,8 +156,8 @@ def main():
     trainer = Seq2SeqTrainer(
         model=model,
         args=training_args,
-        train_dataset=train_dataset, # if training_args.do_train else None,
-        eval_dataset=valid_dataset, # if training_args.do_eval else None,
+        train_dataset=train_dataset,    # if training_args.do_train else None,
+        eval_dataset=valid_dataset,     # if training_args.do_eval else None,
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
