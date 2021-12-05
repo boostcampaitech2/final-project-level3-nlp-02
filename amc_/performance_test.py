@@ -13,39 +13,55 @@ from performanceBenchmark import PerformanceBenchmark
 
 load_dotenv(verbose=True)
 
-def main(args):
+def performance_test(
+    *,
+    check_point = 'gogamza/kobart-summarization',
+    test_dataset = 'metamong1/summarization_paper',
+    test_dataset_size = 100,
+    cpu_flag=False,
+    test_categories='rouge,time,size',
+    model=None,
+    args=None
+):
     # 기본 세팅
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     api_token = os.getenv('HF_DATASET_API_TOKEN')
-    TEST_DATASET_SIZE = args.test_dataset_size
-    check_point = args.checkpoint  # 'kobart-summarization-finetuned-paper-sample-size-1000/checkpoint-1000'
+    if args:
+        check_point = args.checkpoint  # 'kobart-summarization-finetuned-paper-sample-size-1000/checkpoint-1000'
+        test_dataset = args.test_dataset
+        test_dataset_size = args.test_dataset_size
+        cpu_flag = args.cpu_flag
+        test_categories = args.test_categories
 
-    if args.cpu_flag:
+    if cpu_flag:
         device='cpu'
 
     # 데이터셋 준비
-    dataset = datasets.load_dataset(args.test_dataset, use_auth_token=api_token)
-    test_dataset = dataset['validation'].shuffle().filter(lambda x: len(x['text'])< 500).select(range(TEST_DATASET_SIZE))
+    dataset = datasets.load_dataset(test_dataset, use_auth_token=api_token)
+    test_dataset = dataset['validation'].shuffle().filter(lambda x: len(x['text'])< 500).select(range(test_dataset_size))
 
     # 토크나이저 준비
     tokenizer = AutoTokenizer.from_pretrained(check_point)
 
     # 모델 준비
-    model = AutoModelForSeq2SeqLM.from_pretrained(check_point).to(device)
+    if not model:
+        model = AutoModelForSeq2SeqLM.from_pretrained(check_point)
+    
+    model = model.to(device)
 
     # 사용할 모델 및 파이프라인 준비
     summerizer = pipeline(
         'summarization', 
         model=model,
         tokenizer=tokenizer,
-        device = 0 if torch.cuda.is_available() and not args.cpu_flag else -1
+        device = 0 if torch.cuda.is_available() and not cpu_flag else -1
     )
 
     # 벤치마크 준비
     performance_benchmark = PerformanceBenchmark(summerizer, test_dataset, tokenizer, 'baseline')
 
     # 벤치마크 계산
-    test_categories = args.test_categories.split(',')
+    test_categories = test_categories.split(',')
     if 'rouge' in test_categories:
         performance_benchmark.compute_rouge()
     
@@ -55,6 +71,8 @@ def main(args):
     if 'time' in test_categories:
         performance_benchmark.compute_time()
 
+def main(args):
+    performance_test(args=args)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
