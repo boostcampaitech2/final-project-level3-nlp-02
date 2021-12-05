@@ -23,6 +23,8 @@ from args import (
     ModelArguments
 )
 
+from rdrop_trainer import RdropTrainer
+
 from transformers.trainer_utils import get_last_checkpoint
 from dataloader import SumDataset
 from processor import preprocess_function
@@ -132,15 +134,27 @@ def main():
     wandb.config.update(training_args)
 
     comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
-    trainer = Seq2SeqTrainer(
-        model=model,
-        args=training_args,
-        train_dataset=train_dataset if training_args.do_train else None,
-        eval_dataset=valid_dataset if training_args.do_eval else None,
-        tokenizer=tokenizer,
-        data_collator=data_collator,
-        compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
-    )
+
+    if model_args.use_rdrop:
+        trainer = RdropTrainer(
+            model=model,
+            args=training_args,
+            train_dataset=train_dataset if training_args.do_train else None,
+            eval_dataset=valid_dataset if training_args.do_eval else None,
+            tokenizer=tokenizer,
+            data_collator=data_collator,
+            compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
+        )
+    else:
+        trainer = Seq2SeqTrainer(
+            model=model,
+            args=training_args,
+            train_dataset=train_dataset if training_args.do_train else None,
+            eval_dataset=valid_dataset if training_args.do_eval else None,
+            tokenizer=tokenizer,
+            data_collator=data_collator,
+            compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
+        )
 
     if training_args.do_train:
         checkpoint = None

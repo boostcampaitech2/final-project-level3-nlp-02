@@ -32,3 +32,8 @@ class ModelArguments :
         default=None,
         metadata={"help": "Where to store the pretrained models downloaded from huggingface.co"},
     )
+    use_rdrop: bool = field(
+        default=False,
+        metadata={
+            "help": "Whether to use r-drop when fine-tuning"}
+    )
