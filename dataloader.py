@@ -1,6 +1,6 @@
 from typing import List
 from torch.utils.data import Dataset
-from preprocessor import DocsPreprocessor, PaperPreprocessor
+from preprocessor import DocsPreprocessor
 from datasets import (
     load_dataset,
     concatenate_datasets
