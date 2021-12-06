@@ -311,7 +311,6 @@ class LongformerBartBaseModeloutput(ModelOutput):
     attentions_local: Optional[Tuple[torch.FloatTensor]] = None
     attentions_global: Optional[Tuple[torch.FloatTensor]] = None
 
-
 class BartDecoderWithDocType(BartPretrainedModel):
 
     def __init__(self, 
@@ -335,7 +334,7 @@ class BartDecoderWithDocType(BartPretrainedModel):
         self.embed_positions = BartLearnedPositionalEmbedding(
             config.max_position_embeddings,
             config.d_model,
-            self.padding_idx,
+            # self.padding_idx,
         )
 
         if doc_type_tokens is not None:
@@ -528,6 +527,7 @@ class LongformerBartModel(BartModel):
     def __init__(self, config: LongformerBartConfig):
         super().__init__(config)
         self.encoder = LongformerBartEncoderWithDocType(config, self.shared)
+        self.decoder = BartDecoderWithDocType(config, self.shared)
 
 class LonformerBartWithDoctypeForConditionalGeneration(BartForConditionalGeneration):
     def __init__(self, config: LongformerBartConfig):
