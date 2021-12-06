@@ -9,7 +9,7 @@ class GenerationArguments:
     https://huggingface.co/transformers/main_classes/model.html
     """
     max_length: Optional[int] = field(
-        default=50,
+        default=None,
         metadata={"help": "maximum length of the sequence to be generated."},
     )
     min_length: Optional[int]  = field(
@@ -29,11 +29,11 @@ class GenerationArguments:
         metadata={"help": "Whether or not to return the prediction scores."},
     )
     no_repeat_ngram_size: Optional[int] = field(
-        default=2,
+        default=3,
         metadata={"help": "If set to int > 0, all ngrams of that size can only occur once."},
     )
     num_return_sequences: Optional[int] = field(
-        default=5,
+        default=1,
         metadata={"help": "The number of independently computed returned sequences for each element in the batch."},
     )
     top_k: Optional[int] = field(

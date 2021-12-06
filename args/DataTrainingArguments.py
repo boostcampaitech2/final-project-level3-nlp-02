@@ -41,7 +41,7 @@ class DataTrainingArguments:
         },
     )
     val_max_target_length: Optional[int] = field(
-        default=128,
+        default=None,
         metadata={
             "help": "The maximum total sequence length for validation target text after tokenization. Sequences longer "
             "than this will be truncated, sequences shorter will be padded. Will default to `max_target_length`."
@@ -65,7 +65,7 @@ class DataTrainingArguments:
         },
     )
     max_eval_samples: Optional[int] = field(
-        default=None,
+        default=1000,
         metadata={
             "help": "For debugging purposes or quicker training, truncate the number of evaluation examples to this "
             "value if set."
@@ -79,7 +79,7 @@ class DataTrainingArguments:
         },
     )
     num_beams: Optional[int] = field(
-        default=5,
+        default=None,
         metadata={
             "help": "Number of beams to use for evaluation. This argument will be passed to ``model.generate``, "
             "which is used during ``evaluate`` and ``predict``."

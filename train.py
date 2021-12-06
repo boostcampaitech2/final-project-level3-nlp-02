@@ -76,12 +76,13 @@ def main():
 
     print('\nLoad Validation Dataset')
     valid_dataset = SumDataset(data_args.dataset_name, 'validation', USE_AUTH_TOKEN=USE_AUTH_TOKEN).load_data()
-    valid_dataset.cleanup_cache_files() # 전처리 실험을 위해서 cache 지우기
-
-    print('\nData Filtering')
-    data_filter = Filter(min_size=5, max_size=80)
-    train_dataset = train_dataset.filter(data_filter)
-    valid_dataset = valid_dataset.filter(data_filter)
+    train_dataset.cleanup_cache_files()
+    valid_dataset.cleanup_cache_files()
+    
+    column_names = train_dataset.column_names
+    if training_args.do_train and training_args.do_eval:
+        sampler_cnt = data_args.max_eval_samples*len(data_args.dataset_name)
+        valid_dataset = valid_dataset.shuffle(seed=training_args.seed).select(range(sampler_cnt)) ## validation sampler, default: 10000*dataset_count
 
     if training_args.relative_eval_steps :
         iterations =  training_args.num_train_epochs*math.ceil(len(train_dataset)/training_args.per_device_train_batch_size)
@@ -109,11 +110,6 @@ def main():
     )
     
     prep_fn  = partial(preprocess_function, tokenizer=tokenizer, data_args=data_args)
-    if training_args.do_train:
-        column_names = train_dataset.column_names
-    elif training_args.do_eval:
-        column_names = valid_dataset.column_names
-
     train_dataset = train_dataset.map(
         prep_fn,
         batched=True,
@@ -186,11 +182,11 @@ def main():
 
     max_length = (training_args.generation_max_length
         if training_args.generation_max_length is not None
-        else data_args.max_target_length)
+        else data_args.val_max_target_length)
     results = {}
     
     num_beams = data_args.num_beams if data_args.num_beams is not None else training_args.generation_num_beams
-    if training_args.do_eval:
+    if not training_args.do_train and training_args.do_eval:
         metrics = trainer.evaluate(max_length=max_length, num_beams=num_beams, metric_key_prefix="eval")
         print("#########Eval metrics: #########", metrics) 
         max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(valid_dataset)
