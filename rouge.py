@@ -152,27 +152,27 @@ def _score_lcs(target_tokens, prediction_tokens):
 
 	return scoring.Score(precision=precision, recall=recall, fmeasure=fmeasure)
 
-def _lcs_table(tgt, pred):
+def _lcs_table(target_tokens, prediction_tokens):
 	"""Create 2-d LCS score table."""
-	rows = len(tgt)
-	cols = len(pred)
+	rows = len(target_tokens)
+	cols = len(prediction_tokens)
 	lcs_table = [[0] * (cols + 1) for _ in range(rows + 1)]
 	for i in range(1, rows + 1):
 		for j in range(1, cols + 1):
-			if tgt[i - 1] == pred[j - 1]:
+			if target_tokens[i - 1] == prediction_tokens[j - 1]:
 				lcs_table[i][j] = lcs_table[i - 1][j - 1] + 1
 			else:
 				lcs_table[i][j] = max(lcs_table[i - 1][j], lcs_table[i][j - 1])
 	return lcs_table
 
 
-def _backtrack_norec(t, ref, can):
+def _backtrack_norec(t, target_tokens, prediction_tokens):
 	"""Read out LCS."""
-	i = len(ref)
-	j = len(can)
+	i = len(target_tokens)
+	j = len(prediction_tokens)
 	lcs = []
 	while i > 0 and j > 0:
-		if ref[i - 1] == can[j - 1]:
+		if target_tokens[i - 1] == prediction_tokens[j - 1]:
 			lcs.insert(0, i-1)
 			i -= 1
 			j -= 1
@@ -183,7 +183,7 @@ def _backtrack_norec(t, ref, can):
 	return lcs
 
 
-def _summary_level_lcs(ref_sent, can_sent):
+def _summary_level_lcs(target_tokens_list, prediction_tokens_list):
 	"""ROUGE: Summary-level LCS, section 3.2 in ROUGE paper.
 	Args:
 	ref_sent: list of tokenized reference sentences
@@ -191,26 +191,26 @@ def _summary_level_lcs(ref_sent, can_sent):
 	Returns:
 	summary level ROUGE score
 	"""
-	if not ref_sent or not can_sent:
+	if not target_tokens_list or not prediction_tokens_list:
 		return scoring.Score(precision=0, recall=0, fmeasure=0)
 
-	m = sum(map(len, ref_sent))
-	n = sum(map(len, can_sent))
+	m = sum(map(len, target_tokens_list))
+	n = sum(map(len, prediction_tokens_list))
 	if not n or not m:
 		return scoring.Score(precision=0, recall=0, fmeasure=0)
 
 	# get token counts to prevent double counting
 	token_cnts_r = collections.Counter()
 	token_cnts_c = collections.Counter()
-	for s in ref_sent:
+	for s in target_tokens_list:
 		# s is a list of tokens
 		token_cnts_r.update(s)
-	for s in can_sent:
+	for s in prediction_tokens_list:
 		token_cnts_c.update(s)
 
 	hits = 0
-	for r in ref_sent:
-		lcs = _union_lcs(r, can_sent)
+	for target_tokens in target_tokens_list:
+		lcs = _union_lcs(target_tokens, prediction_tokens_list)
 		# Prevent double-counting:
 		# The paper describes just computing hits += len(_union_lcs()),
 		# but the implementation prevents double counting. We also
@@ -227,7 +227,7 @@ def _summary_level_lcs(ref_sent, can_sent):
 	return scoring.Score(precision=precision, recall=recall, fmeasure=fmeasure)
 
 
-def _union_lcs(ref, c_list):
+def _union_lcs(target_tokens, prediction_tokens_list):
 	"""Find union LCS between a ref sentence and list of candidate sentences.
 	Args:
 	ref: list of tokens
@@ -235,8 +235,8 @@ def _union_lcs(ref, c_list):
 	Returns:
 	List of tokens in ref representing union LCS.
 	"""
-	lcs_list = [lcs_ind(ref, c) for c in c_list]
-	return [ref[i] for i in _find_union(lcs_list)]
+	lcs_list = [lcs_ind(target_tokens, prediction_tokens) for prediction_tokens in prediction_tokens_list]
+	return [target_tokens[i] for i in _find_union(lcs_list)]
 
 
 def _find_union(lcs_list):
@@ -244,10 +244,10 @@ def _find_union(lcs_list):
 	return sorted(list(set().union(*lcs_list)))
 
 
-def lcs_ind(ref, can):
+def lcs_ind(target_tokens, prediction_tokens):
 	"""Returns one of the longest lcs."""
-	t = _lcs_table(ref, can)
-	return _backtrack_norec(t, ref, can)
+	t = _lcs_table(target_tokens, prediction_tokens)
+	return _backtrack_norec(t, target_tokens, prediction_tokens)
 
 
 def _score_ngrams(target_ngrams, prediction_ngrams):
