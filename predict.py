@@ -56,6 +56,9 @@ def main() :
     raw_input_ids =  tokenizer(text, max_length=data_args.max_source_length, truncation=True)
     input_ids = [tokenizer.bos_token_id] + raw_input_ids['input_ids'][:-2] + [tokenizer.eos_token_id]
 
+    num_beams = 3
+    if num_beams is not None :
+        generation_args.num_return_sequences = num_beams
     with timer('** Generate title **') :
         summary_ids = model.generate(torch.tensor([input_ids]), num_beams=num_beams, **generation_args.__dict__)
         print('** text: ', text)

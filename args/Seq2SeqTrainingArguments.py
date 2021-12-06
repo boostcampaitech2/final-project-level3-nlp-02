@@ -41,7 +41,7 @@ class CustomSeq2SeqTrainingArguments(Seq2SeqTrainingArguments):
         },
     )
     relative_eval_steps: int = field(
-        default=0,
+        default=10,
         metadata={  
             "help": "Calculate the evaluation step relative to the size of the data set."
         },

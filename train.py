@@ -70,10 +70,13 @@ def main():
     
     train_dataset = SumDataset(data_args.dataset_name, 'train', USE_AUTH_TOKEN=USE_AUTH_TOKEN).load_data()
     valid_dataset = SumDataset(data_args.dataset_name, 'validation', USE_AUTH_TOKEN=USE_AUTH_TOKEN).load_data()
-    # train_dataset = train_dataset.shuffle(seed=42).select(range(1000))
-    # valid_dataset = valid_dataset.shuffle(seed=42).select(range(1000))
     train_dataset.cleanup_cache_files()
     valid_dataset.cleanup_cache_files()
+    
+    column_names = train_dataset.column_names
+    if training_args.do_train and training_args.do_eval:
+        sampler_cnt = data_args.max_eval_samples*len(data_args.dataset_name)
+        valid_dataset = valid_dataset.shuffle(seed=training_args.seed).select(range(sampler_cnt)) ## validation sampler, default: 10000*dataset_count
 
     if training_args.relative_eval_steps :
         iterations =  training_args.num_train_epochs*math.ceil(len(train_dataset)/training_args.per_device_train_batch_size)
@@ -101,11 +104,6 @@ def main():
     )
     
     prep_fn  = partial(preprocess_function, tokenizer=tokenizer, data_args=data_args)
-    if training_args.do_train:
-        column_names = train_dataset.column_names
-    elif training_args.do_eval:
-        column_names = valid_dataset.column_names
-    
     train_dataset = train_dataset.map(
         prep_fn,
         batched=True,
