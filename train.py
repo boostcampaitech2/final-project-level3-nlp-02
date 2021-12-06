@@ -72,13 +72,15 @@ def main():
     
     print('\nLoad Train Dataset')
     train_dataset = SumDataset(data_args.dataset_name, 'train', USE_AUTH_TOKEN=USE_AUTH_TOKEN).load_data()
-    train_dataset.cleanup_cache_files() # 전처리 실험을 위해서 cache 지우기
 
     print('\nLoad Validation Dataset')
     valid_dataset = SumDataset(data_args.dataset_name, 'validation', USE_AUTH_TOKEN=USE_AUTH_TOKEN).load_data()
-    train_dataset.cleanup_cache_files()
-    valid_dataset.cleanup_cache_files()
-    
+
+    print('\nData Filtering')
+    data_filter = Filter(min_size=5, max_size=80)
+    train_dataset = train_dataset.filter(data_filter)
+    valid_dataset = valid_dataset.filter(data_filter)
+
     column_names = train_dataset.column_names
     if training_args.do_train and training_args.do_eval:
         sampler_cnt = data_args.max_eval_samples*len(data_args.dataset_name)

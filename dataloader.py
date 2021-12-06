@@ -30,7 +30,7 @@ class SumDataset(Dataset) :
             else :
                 dataset_idx = dataset_idx.map(self.data_preprocessor.for_train)
 
-            dataset_idx.cleanup_cache_files() # 전처리 성능 실험을 위해서 cache 지우는 과정
+            dataset_idx.cleanup_cache_files()
             self.dataset.append(dataset_idx)
 
     def load_data(self):
