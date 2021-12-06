@@ -11,13 +11,9 @@ from typing import Optional, Tuple, List
 
 from dataclasses import dataclass
 from transformers.activations import ACT2FN
-# from transformers.modeling_outputs import Seq2SeqLMOutput,Seq2SeqModelOutput
 
 from transformers.utils import logging
 from transformers.file_utils import ModelOutput
-    # add_start_docstrings_to_model_forward,
-    # replace_return_docstrings,
-    # add_end_docstrings
 
 from transformers.models.bart.configuration_bart import BartConfig
 from transformers.models.bart.modeling_bart import (
@@ -36,34 +32,7 @@ from transformers.models.longformer.configuration_longformer import LongformerCo
 from transformers.models.longformer.modeling_longformer import LongformerSelfAttention,LongformerEmbeddings
 
 logger = logging.get_logger(__name__)
-# LongformerConfig {
-#   "attention_mode": "longformer",
-###########   "attention_probs_dropout_prob": 0.1,
-###########   "attention_window": [
-########### 512,512,512,512,512,512,512,512,512,512,512,512],
-#   "bos_token_id": 0,
-#   "classifier_dropout": null,
-#   "eos_token_id": 2,
-#   "gradient_checkpointing": false,
-#   "hidden_act": "gelu",
-#   "hidden_dropout_prob": 0.1,
-#   "hidden_size": 768,
-#   "ignore_attention_mask": false,
-#   "initializer_range": 0.02,
-#   "intermediate_size": 3072,
-#   "layer_norm_eps": 1e-05,
-#   "max_position_embeddings": 4098,
-#   "model_type": "longformer",
-###########   "num_attention_heads": 12,
-#   "num_hidden_layers": 12,
-#   "pad_token_id": 1,
-#   "position_embedding_type": "absolute",
-#   "sep_token_id": 2,
-#   "transformers_version": "4.12.5",
-#   "type_vocab_size": 1,
-#   "use_cache": true,
-#   "vocab_size": 50265
-# }
+
 
 class LongformerBartConfig(BartConfig):
     def __init__(self,
@@ -207,11 +176,25 @@ class LongformerBartEncoderWithDocType(BartPretrainedModel):
         self.layers = nn.ModuleList([LongformerBartEncoderLayer(config, i) for i in range(config.encoder_layers)])
         self.layernorm_embedding = nn.LayerNorm(embed_dim)
 
-        self.init_weights()
+        
         self.gradient_checkpointing = False
         # Initialize weights and apply final processing
         self.post_init()
-
+    
+    def post_init(self):
+        """
+        A method executed at the end of each Transformer model initialization, to execute code that needs the model's
+        modules properly initialized (such as weight initialization).
+        """
+        self.init_weights()
+        self._backward_compatibility_gradient_checkpointing()
+    
+    def _backward_compatibility_gradient_checkpointing(self):
+        if self.supports_gradient_checkpointing and getattr(self.config, "gradient_checkpointing", False):
+            self.gradient_checkpointing_enable()
+            # Remove the attribute now that is has been consumed, so it's no saved in the config.
+            delattr(self.config, "gradient_checkpointing")
+        
     def get_input_embeddings(self):
         return self.embed_tokens
 
