@@ -47,6 +47,7 @@ class LongformerBartConfig(BartConfig):
         self.attention_window = attention_window
         self.attention_probs_dropout_prob=attention_probs_dropout_prob
         self.doc_type_size=doc_type_size
+
 class LongformerSelfAttentionForBart(nn.Module):
     def __init__(self, config:LongformerBartConfig, layer_id:int):
         super().__init__()
