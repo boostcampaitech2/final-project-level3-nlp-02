@@ -2,6 +2,7 @@ __pycache__/**
 args/__pycache__
 wandb/**
 model/**
+evaluation/**
 
 *.env
 *.ipynb
