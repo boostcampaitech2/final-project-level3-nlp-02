@@ -70,8 +70,10 @@ def main():
     
     train_dataset = SumDataset(data_args.dataset_name, 'train', USE_AUTH_TOKEN=USE_AUTH_TOKEN).load_data()
     valid_dataset = SumDataset(data_args.dataset_name, 'validation', USE_AUTH_TOKEN=USE_AUTH_TOKEN).load_data()
-    # train_dataset.cleanup_cache_files()
-    # valid_dataset.cleanup_cache_files()
+    # train_dataset = train_dataset.shuffle(seed=42).select(range(1000))
+    # valid_dataset = valid_dataset.shuffle(seed=42).select(range(1000))
+    train_dataset.cleanup_cache_files()
+    valid_dataset.cleanup_cache_files()
 
     if training_args.relative_eval_steps :
         iterations =  training_args.num_train_epochs*math.ceil(len(train_dataset)/training_args.per_device_train_batch_size)
@@ -176,11 +178,11 @@ def main():
 
     max_length = (training_args.generation_max_length
         if training_args.generation_max_length is not None
-        else data_args.max_target_length)
+        else data_args.val_max_target_length)
     results = {}
     
     num_beams = data_args.num_beams if data_args.num_beams is not None else training_args.generation_num_beams
-    if training_args.do_eval:
+    if not training_args.do_train and training_args.do_eval:
         metrics = trainer.evaluate(max_length=max_length, num_beams=num_beams, metric_key_prefix="eval")
         print("#########Eval metrics: #########", metrics) 
         max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(valid_dataset)
