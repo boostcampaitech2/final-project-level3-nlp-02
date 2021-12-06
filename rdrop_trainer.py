@@ -25,7 +25,7 @@ class RdropTrainer(Seq2SeqTrainer):
         Get network output(loss, logits) and normalize logits using softmax
         Args:
             net_output tuple(loss, logits): logits before softmax
-            log_probs bool: whether or not it is log probabilities
+            log_probs bool: whether it is log probabilities
         Return:
             normalized probs: after softmax
         """
@@ -51,7 +51,6 @@ class RdropTrainer(Seq2SeqTrainer):
         """
         model.train()
         inputs = self._prepare_inputs(inputs)
-        # print(inputs.keys())
         
         concat_inputs = {
             'input_ids': torch.cat([inputs['input_ids'], inputs['input_ids'].clone()], 0),
@@ -59,14 +58,6 @@ class RdropTrainer(Seq2SeqTrainer):
             'labels': inputs['labels'],
             'decoder_input_ids': torch.cat([inputs['decoder_input_ids'], inputs['decoder_input_ids'].clone()], 0),
         } # 두 번 forward 하기 힘드니까 concate해서 한 번에 feed 하고 잘라주는 형식입니다.
-
-        # if is_sagemaker_mp_enabled():
-        #     '''
-        #     "SM_HP_MP_PARAMETERS" 라는 환경 변수를 찾아서 안에 partitions 라는 field가 있는지 체크. 현재 서버에서 is_sagemaker_mp_enabled() == False 임을 확인했으므로 필요없다고 판단되어 주석 처리
-        #     '''
-        #     scaler = self.scaler if self.do_grad_scaling else None
-        #     loss_mb = smp_forward_backward(model, inputs, self.args.gradient_accumulation_steps, scaler=scaler)
-        #     return loss_mb.reduce_mean().detach().to(self.args.device)
 
         if self.use_amp:
             if version.parse(torch.__version__) >= version.parse("1.10"):
@@ -99,7 +90,7 @@ class RdropTrainer(Seq2SeqTrainer):
         return loss.detach()
 
 
-    # 원래 huggingface Trainer compute_loss
+    # huggingface Trainer compute_loss 함수를 수정하였습니다.
     def compute_loss(self, model, inputs, return_outputs=False):
         """
         How the loss is computed by Trainer. By default, all models return the loss in the first element.
@@ -109,7 +100,7 @@ class RdropTrainer(Seq2SeqTrainer):
         if self.label_smoother is not None and "labels" in inputs:
             labels = inputs.pop("labels")
             pad_mask = labels.unsqueeze(-1).eq(self.label_smoother.ignore_index)
-            labels = torch.cat([labels, labels.clone()], 0) # r-drop
+            labels = torch.cat([labels, labels.clone()], 0) # for r-drop
         else:
             labels = None
         outputs = model(**inputs)
@@ -120,7 +111,8 @@ class RdropTrainer(Seq2SeqTrainer):
             self._past = outputs[self.args.past_index]
 
         if labels is not None:
-            loss = self.label_smoother(outputs, labels)
+            # loss = self.label_smoother(outputs, labels)
+            loss = self.label_smoothed_nll_loss(outputs, labels, 0.1)
             kl_loss = self.compute_kl_loss(outputs, pad_mask)
             loss += 0.7 * kl_loss # 0.7 == reg_alpha
         else:
@@ -149,3 +141,25 @@ class RdropTrainer(Seq2SeqTrainer):
 
         loss = (p_loss + q_loss) / 2
         return loss
+
+    def label_smoothed_nll_loss(self, model_output, labels, epsilon):
+        logits = model_output["logits"] if isinstance(model_output, dict) else model_output[0]
+        log_probs = -F.log_softmax(logits, dim=-1)
+        if labels.dim() == log_probs.dim() - 1:
+            labels = labels.unsqueeze(-1)
+
+        padding_mask = labels.eq(self.label_smoother.ignore_index)
+        # In case the ignore_index is -100, the gather will fail, so we replace labels by 0. The padding_mask
+        # will ignore them in any case.
+        labels = torch.clamp(labels, min=0)
+        nll_loss = log_probs.gather(dim=-1, index=labels)
+        # works for fp16 input tensor too, by internally upcasting it to fp32
+        smoothed_loss = log_probs.sum(dim=-1, keepdim=True, dtype=torch.float32)
+
+        nll_loss.masked_fill_(padding_mask, 0.0)
+        smoothed_loss.masked_fill_(padding_mask, 0.0)
+
+        nll_loss = nll_loss.sum()
+        smoothed_loss = smoothed_loss.sum()
+        eps_i = epsilon / log_probs.size(-1)
+        return (1. - epsilon) * nll_loss + eps_i * smoothed_loss

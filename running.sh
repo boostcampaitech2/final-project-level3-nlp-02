@@ -24,6 +24,6 @@ python train.py \
 --metric_for_best_model rougeLsum \
 --es_patience 5 \
 --relative_eval_steps 20 \
---wandb_unique_tag kobart_ep2_lr3e05_srclen1024_tgtlen128_rdrop \
+--wandb_unique_tag kobart_ep2_lr3e05_srclen1024_tgtlen128_rdrop_nll \
 --use_rdrop True \
 --label_smoothing_factor 0.1
