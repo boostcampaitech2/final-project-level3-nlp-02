@@ -526,8 +526,11 @@ class BartDecoderWithDocType(BartPretrainedModel):
 class LongformerBartModel(BartModel):
     def __init__(self, config: LongformerBartConfig):
         super().__init__(config)
-        self.encoder = LongformerBartEncoderWithDocType(config, self.shared)
-        self.decoder = BartDecoderWithDocType(config, self.shared)
+        embed_dim = config.d_model
+        self.padding_idx = config.pad_token_id
+        self.doc_type_shared = nn.Embedding(config.doc_type_size,embed_dim, self.padding_idx)
+        self.encoder = LongformerBartEncoderWithDocType(config, self.shared, self.doc_type_shared)
+        self.decoder = BartDecoderWithDocType(config, self.shared, self.doc_type_shared)
 
 class LonformerBartWithDoctypeForConditionalGeneration(BartForConditionalGeneration):
     def __init__(self, config: LongformerBartConfig):
