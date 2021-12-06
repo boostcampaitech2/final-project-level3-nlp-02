@@ -17,6 +17,9 @@ class RdropTrainer(Seq2SeqTrainer):
     """
     original Trainer source code: https://github.com/huggingface/transformers/blob/master/src/transformers/trainer.py
     """
+    def __init__(self, **kwargs):
+        super(RdropTrainer, self).__init__(**kwargs)
+
     def get_normalized_probs(self, net_output, log_probs=True):
         """
         Get network output(loss, logits) and normalize logits using softmax
@@ -26,7 +29,7 @@ class RdropTrainer(Seq2SeqTrainer):
         Return:
             normalized probs: after softmax
         """
-        logits = net_output[1].float()
+        logits = net_output["logits"] if isinstance(net_output, dict) else net_output[0]
         if log_probs:
             return F.log_softmax(logits, dim=-1)
         else:
@@ -48,10 +51,13 @@ class RdropTrainer(Seq2SeqTrainer):
         """
         model.train()
         inputs = self._prepare_inputs(inputs)
-
+        # print(inputs.keys())
+        
         concat_inputs = {
-            'input_ids': torch.cat([inputs['input_ids'], inputs['inpit_ids'].clone()], 0),
-            'attention_mask': torch.cat([inputs['attention_mask'], inputs['attention_mask'].clone()], 0)
+            'input_ids': torch.cat([inputs['input_ids'], inputs['input_ids'].clone()], 0),
+            'attention_mask': torch.cat([inputs['attention_mask'], inputs['attention_mask'].clone()], 0),
+            'labels': inputs['labels'],
+            'decoder_input_ids': torch.cat([inputs['decoder_input_ids'], inputs['decoder_input_ids'].clone()], 0),
         } # 두 번 forward 하기 힘드니까 concate해서 한 번에 feed 하고 잘라주는 형식입니다.
 
         # if is_sagemaker_mp_enabled():
@@ -79,9 +85,9 @@ class RdropTrainer(Seq2SeqTrainer):
             # deepspeed handles loss scaling by gradient_accumulation_steps in its `backward`
             loss = loss / self.args.gradient_accumulation_steps
 
-        if self.do_grad_scaling:
-            self.scaler.scale(loss).backward()
-        elif self.use_apex:
+        # if self.do_grad_scaling: # transformers==4.11.0 에는 없어서 주석처리 하였습니다.
+        #     self.scaler.scale(loss).backward()
+        if self.use_apex:
             with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                 scaled_loss.backward()
         elif self.deepspeed:
@@ -99,9 +105,10 @@ class RdropTrainer(Seq2SeqTrainer):
         How the loss is computed by Trainer. By default, all models return the loss in the first element.
         Subclass and override for custom behavior.
         """
+        
         if self.label_smoother is not None and "labels" in inputs:
             labels = inputs.pop("labels")
-            pad_mask = labels.unsqueeze(-1).eq(self.padding_idx)
+            pad_mask = labels.unsqueeze(-1).eq(self.label_smoother.ignore_index)
             labels = torch.cat([labels, labels.clone()], 0) # r-drop
         else:
             labels = None

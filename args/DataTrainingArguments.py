@@ -23,7 +23,7 @@ class DataTrainingArguments:
         metadata={"help": "Overwrite the cached training and evaluation sets"},
     )
     preprocessing_num_workers: Optional[int] = field(
-        default=2,
+        default=4,
         metadata={"help": "The number of processes to use for the preprocessing."},
     )
     max_source_length: int = field(
@@ -34,14 +34,14 @@ class DataTrainingArguments:
         },
     )
     max_target_length: int = field(
-        default=256,
+        default=128,
         metadata={
             "help": "The maximum total input sequence length after tokenization. Sequences longer "
             "than this will be truncated, sequences shorter will be padded."
         },
     )
     val_max_target_length: Optional[int] = field(
-        default=256,
+        default=128,
         metadata={
             "help": "The maximum total sequence length for validation target text after tokenization. Sequences longer "
             "than this will be truncated, sequences shorter will be padded. Will default to `max_target_length`."
@@ -91,3 +91,9 @@ class DataTrainingArguments:
             "help": "Whether to ignore the tokens corresponding to padded labels in the loss computation or not."
         },
     )
+    use_auth_token_path: Optional[str] = field(
+        default='./use_auth_token.env',
+        metadata={"help":'input your use_auth_token path'},
+    )
+    
+    

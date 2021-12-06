@@ -23,7 +23,3 @@ class LoggingArguments:
         default="kobart",
         metadata={"help": "project name"},
     )
-    dotenv_path: Optional[str] = field(
-        default="/opt/ml/final-project-level3-nlp-02/wandb.env",
-        metadata={"help":"input your dotenv path"},
-    )

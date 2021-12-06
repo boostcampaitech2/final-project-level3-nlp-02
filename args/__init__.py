@@ -1,5 +1,5 @@
-from transformers  import Seq2SeqTrainingArguments
 from .ModelArguments import ModelArguments
 from .DataTrainingArguments import DataTrainingArguments
 from .GenerationArguments import GenerationArguments
 from .LoggingArguments import LoggingArguments
+from .Seq2SeqTrainingArguments import CustomSeq2SeqTrainingArguments
