@@ -40,12 +40,6 @@ class CustomSeq2SeqTrainingArguments(Seq2SeqTrainingArguments):
             "help": "The evaluation strategy to adopt during training"
         },
     )
-    relative_eval_steps: int = field(
-        default=10,
-        metadata={  
-            "help": "Calculate the evaluation step relative to the size of the data set."
-        },
-    )
     load_best_model_at_end: bool = field(
         default=True,
         metadata={

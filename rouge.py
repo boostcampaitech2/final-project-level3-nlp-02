@@ -62,10 +62,10 @@ class CustomRouge(rouge_scorer.RougeScorer) :
 		self.rouge_types = rouge_types
 		self.tokenizer = tokenizer
 
-	def score(self, target, prediction):
-		"""Calculates rouge scores between the target and prediction.
+	def score(self, references, prediction):
+		"""Calculates rouge scores between the references and prediction.
 		Args:
-			target: Text containing the target (ground truth) text.
+			references: Text containing the references (ground truth) text.
 			prediction: Text containing the predicted text.
 		Returns:
 			A dict mapping each rouge type to a Score object.
@@ -73,20 +73,20 @@ class CustomRouge(rouge_scorer.RougeScorer) :
 			ValueError: If an invalid rouge type is encountered.
 		"""
 
-		# Pre-compute target tokens and prediction tokens for use by different
+		# Pre-compute references tokens and prediction tokens for use by different
 		# types, except if only "rougeLsum" is requested.
 		if len(self.rouge_types) == 1 and self.rouge_types[0] == "rougeLsum":
-			target_tokens = None
+			reference_tokens = None
 			prediction_tokens = None
 		else:
-			target_tokens = self.tokenizer.tokenize(target)
+			reference_tokens = self.tokenizer.tokenize(references)
 			prediction_tokens = self.tokenizer.tokenize(prediction)
 		result = {}
 
 		for rouge_type in self.rouge_types:
 			if rouge_type == "rougeL":
 				# Rouge from longest common subsequences.
-				scores = _score_lcs(target_tokens, prediction_tokens)
+				scores = _score_lcs(reference_tokens, prediction_tokens)
 			elif rouge_type == "rougeLsum":
 				# Note: Does not support multi-line text.
 				def get_sents(text):
@@ -95,21 +95,22 @@ class CustomRouge(rouge_scorer.RougeScorer) :
 					sents = [x for x in sents if len(x)]
 					return sents
 
-				target_tokens_list = [
-					self.tokenizer.tokenize(s) for s in get_sents(target)]
+				## \n로 구분된 문장을 split하여 lcs
+				reference_tokens_list = [
+					self.tokenizer.tokenize(s) for s in get_sents(references)] ## muti-line split 후 tokenizer
 				prediction_tokens_list = [
-					self.tokenizer.tokenize(s) for s in get_sents(prediction)]
-				scores = _summary_level_lcs(target_tokens_list,
+					self.tokenizer.tokenize(s) for s in get_sents(prediction)] ## muti-line split 후 tokenizer
+				scores = _summary_level_lcs(reference_tokens_list,
 											prediction_tokens_list)
 						
-			elif re.match(r"rouge[0-9]$", six.ensure_str(rouge_type)):
+			elif re.match(r"rouge[0-9]$", six.ensure_str(rouge_type)): ## six.ensure_str: rouge type을 강제적으로 str type 변환
 				# Rouge from n-grams.
 				n = int(rouge_type[5:])
 				if n <= 0:
 					raise ValueError("rougen requires positive n: %s" % rouge_type)
-				target_ngrams = _create_ngrams(target_tokens, n)
+				reference_ngrams = _create_ngrams(reference_tokens, n)
 				prediction_ngrams = _create_ngrams(prediction_tokens, n)
-				scores = _score_ngrams(target_ngrams, prediction_ngrams)
+				scores = _score_ngrams(reference_ngrams, prediction_ngrams)
 			else:
 				raise ValueError("Invalid rouge type: %s" % rouge_type)
 			result[rouge_type] = scores
@@ -130,49 +131,49 @@ def _create_ngrams(tokens, n):
 	return ngrams
 
 
-def _score_lcs(target_tokens, prediction_tokens):
+def _score_lcs(reference_tokens, prediction_tokens):
 	"""Computes LCS (Longest Common Subsequence) rouge scores.
 	Args:
-		target_tokens: Tokens from the target text.
+		reference_tokens: Tokens from the reference text.
 		prediction_tokens: Tokens from the predicted text.
 	Returns:
 		A Score object containing computed scores.
 	"""
 
-	if not target_tokens or not prediction_tokens:
+	if not reference_tokens or not prediction_tokens:
 		return scoring.Score(precision=0, recall=0, fmeasure=0)
 
 	# Compute length of LCS from the bottom up in a table (DP appproach).
-	lcs_table = _lcs_table(target_tokens, prediction_tokens)
-	lcs_length = lcs_table[-1][-1]
+	lcs_table = _lcs_table(reference_tokens, prediction_tokens)
+	lcs_length = lcs_table[-1][-1] ## Longest Common Subsequence 수 
 
 	precision = lcs_length / len(prediction_tokens)
-	recall = lcs_length / len(target_tokens)
+	recall = lcs_length / len(reference_tokens)
 	fmeasure = scoring.fmeasure(precision, recall)
 
 	return scoring.Score(precision=precision, recall=recall, fmeasure=fmeasure)
 
-def _lcs_table(target_tokens, prediction_tokens):
+def _lcs_table(reference_tokens, prediction_tokens):
 	"""Create 2-d LCS score table."""
-	rows = len(target_tokens)
+	rows = len(reference_tokens)
 	cols = len(prediction_tokens)
 	lcs_table = [[0] * (cols + 1) for _ in range(rows + 1)]
 	for i in range(1, rows + 1):
 		for j in range(1, cols + 1):
-			if target_tokens[i - 1] == prediction_tokens[j - 1]:
+			if reference_tokens[i - 1] == prediction_tokens[j - 1]:
 				lcs_table[i][j] = lcs_table[i - 1][j - 1] + 1
 			else:
 				lcs_table[i][j] = max(lcs_table[i - 1][j], lcs_table[i][j - 1])
 	return lcs_table
 
 
-def _backtrack_norec(t, target_tokens, prediction_tokens):
+def _backtrack_norec(t, ref, pred):
 	"""Read out LCS."""
-	i = len(target_tokens)
-	j = len(prediction_tokens)
+	i = len(ref)
+	j = len(pred)
 	lcs = []
 	while i > 0 and j > 0:
-		if target_tokens[i - 1] == prediction_tokens[j - 1]:
+		if ref[i - 1] == pred[j - 1]:
 			lcs.insert(0, i-1)
 			i -= 1
 			j -= 1
@@ -183,18 +184,18 @@ def _backtrack_norec(t, target_tokens, prediction_tokens):
 	return lcs
 
 
-def _summary_level_lcs(target_tokens_list, prediction_tokens_list):
+def _summary_level_lcs(reference_tokens_list, prediction_tokens_list):
 	"""ROUGE: Summary-level LCS, section 3.2 in ROUGE paper.
 	Args:
-	ref_sent: list of tokenized reference sentences
-	can_sent: list of tokenized candidate sentences
+	reference_tokens_list: list of tokenized reference sentences
+	prediction_tokens_list: list of tokenized prediction sentences
 	Returns:
 	summary level ROUGE score
 	"""
-	if not target_tokens_list or not prediction_tokens_list:
+	if not reference_tokens_list or not prediction_tokens_list:
 		return scoring.Score(precision=0, recall=0, fmeasure=0)
 
-	m = sum(map(len, target_tokens_list))
+	m = sum(map(len, reference_tokens_list))
 	n = sum(map(len, prediction_tokens_list))
 	if not n or not m:
 		return scoring.Score(precision=0, recall=0, fmeasure=0)
@@ -202,15 +203,15 @@ def _summary_level_lcs(target_tokens_list, prediction_tokens_list):
 	# get token counts to prevent double counting
 	token_cnts_r = collections.Counter()
 	token_cnts_c = collections.Counter()
-	for s in target_tokens_list:
+	for s in reference_tokens_list:
 		# s is a list of tokens
 		token_cnts_r.update(s)
 	for s in prediction_tokens_list:
 		token_cnts_c.update(s)
 
 	hits = 0
-	for target_tokens in target_tokens_list:
-		lcs = _union_lcs(target_tokens, prediction_tokens_list)
+	for ref in reference_tokens_list:
+		lcs = _union_lcs(ref, prediction_tokens_list) ## ref가 여러 문장의 prediction 문장의 for문을 돌면서 일치하는 것 찾아줌
 		# Prevent double-counting:
 		# The paper describes just computing hits += len(_union_lcs()),
 		# but the implementation prevents double counting. We also
@@ -227,16 +228,16 @@ def _summary_level_lcs(target_tokens_list, prediction_tokens_list):
 	return scoring.Score(precision=precision, recall=recall, fmeasure=fmeasure)
 
 
-def _union_lcs(target_tokens, prediction_tokens_list):
-	"""Find union LCS between a ref sentence and list of candidate sentences.
+def _union_lcs(ref, prediction_tokens_list):
+	"""Find union LCS between a ref sentence and list of predicted sentences.
 	Args:
 	ref: list of tokens
-	c_list: list of list of indices for LCS into reference summary
+	prediction_tokens_list: list of list of indices for LCS into reference summary
 	Returns:
 	List of tokens in ref representing union LCS.
 	"""
-	lcs_list = [lcs_ind(target_tokens, prediction_tokens) for prediction_tokens in prediction_tokens_list]
-	return [target_tokens[i] for i in _find_union(lcs_list)]
+	lcs_list = [lcs_ind(ref, pred) for pred in prediction_tokens_list]
+	return [ref[i] for i in _find_union(lcs_list)]
 
 
 def _find_union(lcs_list):
@@ -244,17 +245,17 @@ def _find_union(lcs_list):
 	return sorted(list(set().union(*lcs_list)))
 
 
-def lcs_ind(target_tokens, prediction_tokens):
+def lcs_ind(ref, pred):
 	"""Returns one of the longest lcs."""
-	t = _lcs_table(target_tokens, prediction_tokens)
-	return _backtrack_norec(t, target_tokens, prediction_tokens)
+	t = _lcs_table(ref, pred)
+	return _backtrack_norec(t, ref, pred)
 
 
-def _score_ngrams(target_ngrams, prediction_ngrams):
+def _score_ngrams(reference_ngrams, prediction_ngrams):
 	"""Compute n-gram based rouge scores.
 	Args:
-	target_ngrams: A Counter object mapping each ngram to number of
-		occurrences for the target text.
+	reference_ngrams: A Counter object mapping each ngram to number of
+		occurrences for the reference text.
 	prediction_ngrams: A Counter object mapping each ngram to number of
 		occurrences for the prediction text.
 	Returns:
@@ -262,13 +263,13 @@ def _score_ngrams(target_ngrams, prediction_ngrams):
 	"""
 
 	intersection_ngrams_count = 0
-	for ngram in six.iterkeys(target_ngrams):
-		intersection_ngrams_count += min(target_ngrams[ngram], prediction_ngrams[ngram])
-	target_ngrams_count = sum(target_ngrams.values())
+	for ngram in six.iterkeys(reference_ngrams): ## python 3 ".keys()"
+		intersection_ngrams_count += min(reference_ngrams[ngram], prediction_ngrams[ngram]) ## 겹치는 n_gram  counting (True positive)
+	reference_ngrams_count = sum(reference_ngrams.values())
 	prediction_ngrams_count = sum(prediction_ngrams.values())
 
 	precision = intersection_ngrams_count / max(prediction_ngrams_count, 1)
-	recall = intersection_ngrams_count / max(target_ngrams_count, 1)
-	fmeasure = scoring.fmeasure(precision, recall)
+	recall = intersection_ngrams_count / max(reference_ngrams_count, 1)
+	fmeasure = scoring.fmeasure(precision, recall) ## f1 score 계산
 
-	return scoring.Score(precision=precision, recall=recall, fmeasure=fmeasure)
+	return scoring.Score(precision=precision, recall=recall, fmeasure=fmeasure) ## Output formatting
