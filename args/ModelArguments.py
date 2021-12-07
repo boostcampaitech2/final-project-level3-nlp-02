@@ -13,7 +13,7 @@ class ModelArguments :
         },
     )
     config_name: Optional[str] = field(
-        default="gogamza/kobart-base-v1",
+        default=None,
         metadata={
             "help": "Pretrained config name or path if not the s ame as model_name"
         },

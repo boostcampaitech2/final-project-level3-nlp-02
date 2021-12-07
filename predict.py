@@ -37,26 +37,27 @@ def main() :
         cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast_tokenizer
     )
-    model_args.model_name_or_path = 'model/kobart'
     model = AutoModelForSeq2SeqLM.from_pretrained(
         model_args.model_name_or_path,
         from_tf=bool(".ckpt" in model_args.model_name_or_path),
         config=config,
         cache_dir=model_args.cache_dir
     )
-
+    
+    ### test 용 code ###
     from dataloader import SumDataset
-    dataset_name = ['metamong1/summarization_paper']
+    dataset_name = ['metamong1/summarization_magazine']
     validation_dataset = SumDataset(dataset_name, 'validation', USE_AUTH_TOKEN='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').load_data()
-    idx = 42
+    idx = 1600 ## 바꾸면서 test 해보세요!
     text = validation_dataset[idx]['text']
     title = validation_dataset[idx]['title']
+    #####################
     # text = input("요약할 문장을 넣어주세요:")
 
     raw_input_ids =  tokenizer(text, max_length=data_args.max_source_length, truncation=True)
     input_ids = [tokenizer.bos_token_id] + raw_input_ids['input_ids'][:-2] + [tokenizer.eos_token_id]
 
-    num_beams = 3
+    num_beams = data_args.num_beams
     if num_beams is not None :
         generation_args.num_return_sequences = num_beams
     with timer('** Generate title **') :
