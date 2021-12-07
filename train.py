@@ -86,7 +86,11 @@ def main():
             ).load_data()
     train_dataset.cleanup_cache_files()
     valid_dataset.cleanup_cache_files()
-    
+
+    data_filter = Filter(min_size=3, max_size=100)
+    train_dataset = train_dataset.filter(data_filter)
+    valid_dataset = valid_dataset.filter(data_filter)
+
     column_names = train_dataset.column_names
     if data_args.relative_eval_steps :
         iterations =  training_args.num_train_epochs*math.ceil(len(train_dataset)/training_args.per_device_train_batch_size)

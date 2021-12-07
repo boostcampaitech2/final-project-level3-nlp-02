@@ -15,7 +15,7 @@ python train.py \
 --relative_eval_steps 10 \
 --relative_sample_ratio 0.5 \
 --project_name kobart_1207 \
---wandb_unique_tag kobartV1_ep2_lr3e05_srclen1024_R50
+--wandb_unique_tag kobartV1_ep2_lr3e05_srclen1024_tgtlen128__preprocessing
 
 # python train.py \
 # --do_eval \
