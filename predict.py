@@ -9,11 +9,12 @@ from transformers import (
     HfArgumentParser
 )
 
-from arguments import (
+from args import (
     ModelArguments,
     DataTrainingArguments,
-    GenArguments
+    GenerationArguments
 )
+
 
 @contextmanager
 def timer(name) :
@@ -23,7 +24,7 @@ def timer(name) :
 
 def main() :
     parser = HfArgumentParser(
-        (ModelArguments, DataTrainingArguments, GenArguments)
+        (ModelArguments, DataTrainingArguments, GenerationArguments)
     )
     model_args, data_args, generation_args = parser.parse_args_into_dataclasses()
 
@@ -36,6 +37,7 @@ def main() :
         cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast_tokenizer
     )
+    model_args.model_name_or_path = 'model/kobart'
     model = AutoModelForSeq2SeqLM.from_pretrained(
         model_args.model_name_or_path,
         from_tf=bool(".ckpt" in model_args.model_name_or_path),
@@ -43,21 +45,28 @@ def main() :
         cache_dir=model_args.cache_dir
     )
 
+    from dataloader import SumDataset
+    dataset_name = ['metamong1/summarization_paper']
+    validation_dataset = SumDataset(dataset_name, 'validation', USE_AUTH_TOKEN='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').load_data()
+    idx = 42
+    text = validation_dataset[idx]['text']
+    title = validation_dataset[idx]['title']
     # text = input("요약할 문장을 넣어주세요:")
-    text = "과거를 떠올려보자. 방송을 보던 우리의 모습을. 독보적인 매체는 TV였다. 온 가족이 둘러앉아 TV를 봤다. 간혹 가족들끼리 뉴스와 드라마, 예능 프로그램을 둘러싸고 리모컨 쟁탈전이 벌어지기도  했다. 각자 선호하는 프로그램을 ‘본방’으로 보기 위한 싸움이었다. TV가 한 대인지 두 대인지 여부도 그래서 중요했다. 지금은 어떤가. ‘안방극장’이라는 말은 옛말이 됐다. TV가 없는 집도 많다. 미디어의 혜 택을 누릴 수 있는 방법은 늘어났다. 각자의 방에서 각자의 휴대폰으로, 노트북으로, 태블릿으로 콘텐츠 를 즐긴다."
 
     raw_input_ids =  tokenizer(text, max_length=data_args.max_source_length, truncation=True)
     input_ids = [tokenizer.bos_token_id] + raw_input_ids['input_ids'][:-2] + [tokenizer.eos_token_id]
 
-    num_beams=data_args.num_beams
     with timer('** Generate title **') :
         summary_ids = model.generate(torch.tensor([input_ids]), num_beams=num_beams, **generation_args.__dict__)
-        if len(summary_ids.shape) == 1 :
+        print('** text: ', text)
+        print('** title: ', title)
+        if len(summary_ids.shape) == 1  or summary_ids.shape[0] == 1:
             title = tokenizer.decode(summary_ids.squeeze().tolist(), skip_special_tokens=True)
-            print(title)
+            print('Gen title 0', title)
         else :
             titles = tokenizer.batch_decode(summary_ids.squeeze().tolist(), skip_special_tokens=True)
-            print(titles)
+            for idx, title in enumerate(titles) :
+                print('Gen title', idx, title)
 
 if __name__ == "__main__":
     main()
