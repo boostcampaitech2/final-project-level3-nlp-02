@@ -27,7 +27,7 @@ class DataTrainingArguments:
         metadata={"help": "The number of processes to use for the preprocessing."},
     )
     max_source_length: int = field(
-        default=512,
+        default=1024,
         metadata={
             "help": "The maximum total input sequence length after tokenization. Sequences longer "
             "than this will be truncated, sequences shorter will be padded."
@@ -65,7 +65,7 @@ class DataTrainingArguments:
         },
     )
     max_eval_samples: Optional[int] = field(
-        default=1000,
+        default=None,
         metadata={
             "help": "For debugging purposes or quicker training, truncate the number of evaluation examples to this "
             "value if set."
@@ -95,5 +95,15 @@ class DataTrainingArguments:
         default='./use_auth_token.env',
         metadata={"help":'input your use_auth_token path'},
     )
-    
-    
+    relative_sample_ratio: float = field(
+        default=1.0,
+        metadata={  
+            "help": "Set the ratio to the data sampling"
+        },
+    )
+    relative_eval_steps: int = field(
+        default=10,
+        metadata={  
+            "help": "Calculate the evaluation step relative to the size of the data set."
+        },
+    )
