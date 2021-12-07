@@ -70,25 +70,31 @@ def main():
     load_dotenv(dotenv_path=data_args.use_auth_token_path)
     USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")
     
-    print('\nLoad Train Dataset')
-    train_dataset = SumDataset(data_args.dataset_name, 'train', USE_AUTH_TOKEN=USE_AUTH_TOKEN).load_data()
+    train_dataset = SumDataset(
+            data_args.dataset_name,
+            'train',
+            shuffle_seed=training_args.seed,
+            ratio=data_args.relative_sample_ratio,
+            USE_AUTH_TOKEN=USE_AUTH_TOKEN
+            ).load_data()
+    valid_dataset = SumDataset(
+            data_args.dataset_name,
+            'validation',
+            shuffle_seed=training_args.seed,
+            ratio=data_args.relative_sample_ratio,
+            USE_AUTH_TOKEN=USE_AUTH_TOKEN
+            ).load_data()
+    train_dataset.cleanup_cache_files()
+    valid_dataset.cleanup_cache_files()
 
-    print('\nLoad Validation Dataset')
-    valid_dataset = SumDataset(data_args.dataset_name, 'validation', USE_AUTH_TOKEN=USE_AUTH_TOKEN).load_data()
-
-    print('\nData Filtering')
     data_filter = Filter(min_size=5, max_size=80)
     train_dataset = train_dataset.filter(data_filter)
     valid_dataset = valid_dataset.filter(data_filter)
 
     column_names = train_dataset.column_names
-    if training_args.do_train and training_args.do_eval:
-        sampler_cnt = data_args.max_eval_samples*len(data_args.dataset_name)
-        valid_dataset = valid_dataset.shuffle(seed=training_args.seed).select(range(sampler_cnt)) ## validation sampler, default: 10000*dataset_count
-
-    if training_args.relative_eval_steps :
+    if data_args.relative_eval_steps :
         iterations =  training_args.num_train_epochs*math.ceil(len(train_dataset)/training_args.per_device_train_batch_size)
-        training_args.eval_steps = int(iterations // training_args.relative_eval_steps) ## dataset 크기에 상대적 eval step 적용
+        training_args.eval_steps = int(iterations // data_args.relative_eval_steps) ## dataset 크기에 상대적 eval step 적용
         training_args.save_steps = training_args.eval_steps
 
     print(f"train_dataset length: {len(train_dataset)}")
