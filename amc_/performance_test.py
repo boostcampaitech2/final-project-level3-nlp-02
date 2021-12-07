@@ -22,6 +22,7 @@ def performance_test(
     cpu_flag=False,
     test_categories='rouge,time,size',
     model=None,
+    seed=42,
     args=None
 ):
     # 기본 세팅
@@ -39,7 +40,7 @@ def performance_test(
 
     # 데이터셋 준비
     dataset = datasets.load_dataset(test_dataset, use_auth_token=api_token)
-    test_dataset = dataset['validation'].shuffle().filter(lambda x: len(x['text'])< 500).select(range(test_dataset_size))
+    test_dataset = dataset['validation'].shuffle(seed=seed).filter(lambda x: len(x['text'])< 500).select(range(test_dataset_size))
 
     # 토크나이저 준비
     tokenizer = AutoTokenizer.from_pretrained(check_point)
