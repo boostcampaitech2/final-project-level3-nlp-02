@@ -55,7 +55,7 @@ class RdropTrainer(Seq2SeqTrainer):
         concat_inputs = {
             'input_ids': torch.cat([inputs['input_ids'], inputs['input_ids'].clone()], 0),
             'attention_mask': torch.cat([inputs['attention_mask'], inputs['attention_mask'].clone()], 0),
-            'labels': inputs['labels'],
+            'labels': torch.cat([inputs['labels'], inputs['labels'].clone()], 0),
             'decoder_input_ids': torch.cat([inputs['decoder_input_ids'], inputs['decoder_input_ids'].clone()], 0),
         } # 두 번 forward 하기 힘드니까 concate해서 한 번에 feed 하고 잘라주는 형식입니다.
 
@@ -100,7 +100,7 @@ class RdropTrainer(Seq2SeqTrainer):
         if self.label_smoother is not None and "labels" in inputs:
             labels = inputs.pop("labels")
             pad_mask = labels.unsqueeze(-1).eq(self.label_smoother.ignore_index)
-            labels = torch.cat([labels, labels.clone()], 0) # for r-drop
+            # labels = torch.cat([labels, labels.clone()], 0) # for r-drop
         else:
             labels = None
         outputs = model(**inputs)
