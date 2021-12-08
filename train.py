@@ -26,9 +26,6 @@ from args import (
 )
 
 from dataloader import SumDataset
-from preprocessor import Filter
-from transformers.trainer_utils import get_last_checkpoint
-
 from processor import preprocess_function
 from rouge import compute_metrics
 
@@ -56,20 +53,19 @@ def main():
 
     last_checkpoint = None
     if os.path.isdir(training_args.output_dir) and training_args.do_train and not training_args.overwrite_output_dir:
-        last_checkpoint = get_last_checkpoint(training_args.output_dir)
-        if last_checkpoint is None and len(os.listdir(training_args.output_dir)) > 0:
-            raise ValueError(
-                f"Output directory ({training_args.output_dir}) already exists and is not empty. "
-                "Use --overwrite_output_dir to overcome."
-            )
+        raise ValueError(
+            f"Output directory ({training_args.output_dir}) already exists and is not empty. "
+            "Use --overwrite_output_dir to overcome."
+        )
     seed_everything(training_args.seed)
-
+    
     types = data_args.dataset_name.split(',')
     data_args.dataset_name = ['metamong1/summarization_' + dt for dt in types]
     
     load_dotenv(dotenv_path=data_args.use_auth_token_path)
-    USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")
-    
+    # USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")
+    USE_AUTH_TOKEN=None
+
     train_dataset = SumDataset(
             data_args.dataset_name,
             'train',
@@ -87,10 +83,10 @@ def main():
     train_dataset.cleanup_cache_files()
     valid_dataset.cleanup_cache_files()
 
-    data_filter = Filter(min_size=5, max_size=80)
-    train_dataset = train_dataset.filter(data_filter)
-    valid_dataset = valid_dataset.filter(data_filter)
-
+    train_dataset = train_dataset.shuffle(training_args.seed)
+    valid_dataset = valid_dataset.shuffle(training_args.seed)
+    
+    print(train_dataset[0]['title'])
     column_names = train_dataset.column_names
     if data_args.relative_eval_steps :
         iterations =  training_args.num_train_epochs*math.ceil(len(train_dataset)/training_args.per_device_train_batch_size)
@@ -110,12 +106,13 @@ def main():
         cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast_tokenizer
     )
-    model = AutoModelForSeq2SeqLM.from_pretrained(
-        model_args.model_name_or_path,
-        from_tf=bool(".ckpt" in model_args.model_name_or_path),
-        config=config,
-        cache_dir=model_args.cache_dir
-    )
+    
+    # model = AutoModelForSeq2SeqLM.from_pretrained(
+    #     model_args.model_name_or_path,
+    #     from_tf=bool(".ckpt" in model_args.model_name_or_path),
+    #     config=config,
+    #     # cache_dir=model_args.cache_dir
+    # )
     
     prep_fn  = partial(preprocess_function, tokenizer=tokenizer, data_args=data_args)
     train_dataset = train_dataset.map(
@@ -123,7 +120,8 @@ def main():
         batched=True,
         num_proc=data_args.preprocessing_num_workers,
         remove_columns=column_names,
-        load_from_cache_file=not data_args.overwrite_cache,
+        load_from_cache_file=False,
+        # load_from_cache_file=not data_args.overwrite_cache,
         desc="Running tokenizer on train dataset",
     )
 
@@ -132,14 +130,15 @@ def main():
         batched=True,
         num_proc=data_args.preprocessing_num_workers,
         remove_columns=column_names,
-        load_from_cache_file=not data_args.overwrite_cache,
+        load_from_cache_file=False,
+        # load_from_cache_file=not data_args.overwrite_cache,
         desc="Running tokenizer on validation dataset",
     )
 
     label_pad_token_id = -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
     data_collator = DataCollatorForSeq2Seq(
         tokenizer,
-        model=model,
+        # model=model,
         label_pad_token_id=label_pad_token_id,
         pad_to_multiple_of=8 if training_args.fp16 else None,
     )
@@ -157,16 +156,30 @@ def main():
     wandb.config.update(training_args)
     
     comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
+    # trainer = Seq2SeqTrainer(
+    #     model=model,
+    #     args=training_args,
+    #     train_dataset=train_dataset, # if training_args.do_train else None,
+    #     eval_dataset=valid_dataset, # if training_args.do_eval else None,
+    #     tokenizer=tokenizer,
+    #     data_collator=data_collator,
+    #     compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
+    #     callbacks = [EarlyStoppingCallback(early_stopping_patience=training_args.es_patience)] if training_args.es_patience else None
+    # )
+    def model_init():
+        return AutoModelForSeq2SeqLM.from_pretrained(model_args.model_name_or_path, from_tf=bool(".ckpt" in model_args.model_name_or_path), config=config)
+    
     trainer = Seq2SeqTrainer(
-        model=model,
         args=training_args,
         train_dataset=train_dataset,    # if training_args.do_train else None,
         eval_dataset=valid_dataset,     # if training_args.do_eval else None,
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
+        model_init=model_init,
         callbacks = [EarlyStoppingCallback(early_stopping_patience=training_args.es_patience)] if training_args.es_patience else None
     )
+
 
     if training_args.do_train:
         checkpoint = None

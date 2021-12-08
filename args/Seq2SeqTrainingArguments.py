@@ -23,10 +23,13 @@ class CustomSeq2SeqTrainingArguments(Seq2SeqTrainingArguments):
         "Deletes the older checkpoints in :obj:`output_dir`."}
     )
     metric_for_best_model: str = field(
-        default="rougeLsum",
+        default="loss",
         metadata={
             "help": "to specify the metric to use to compare two different models"
             "*loss, *rouge1, *rouge2, *rougeL, *rougeLsum"}
+    )
+    greater_is_better: Optional[bool] = field(
+        default=None, metadata={"help": "Whether the `metric_for_best_model` should be maximized or not."}
     )
     eval_steps: Optional[int] = field(
         default=500,
@@ -41,7 +44,7 @@ class CustomSeq2SeqTrainingArguments(Seq2SeqTrainingArguments):
         },
     )
     load_best_model_at_end: bool = field(
-        default=True,
+        default=False,
         metadata={
             "help": "Whether or not to load the best model found during training at the end of training"
         },
