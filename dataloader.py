@@ -30,8 +30,9 @@ class SumDataset(Dataset) :
         dataset_list = []
         for ds in self.dataset :
             typed_ds = ds[self.mode]
-            sampling_count = round(len(typed_ds)*self.ratio)
-            sampled_data_ds = typed_ds.shuffle(self.shuffle_seed).select(range(sampling_count))
+            sampling_count = round(len(typed_ds)*self.ratio) ## 비율로 뽑을 개수 설정
+            shuffled_typed_ds = typed_ds.shuffle(self.shuffle_seed)
+            sampled_data_ds = shuffled_typed_ds.select(range(sampling_count))
             dataset_list.append(sampled_data_ds)
         dataset = concatenate_datasets(dataset_list)
         return dataset

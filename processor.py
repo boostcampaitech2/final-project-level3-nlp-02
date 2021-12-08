@@ -1,5 +1,5 @@
 def preprocess_function(examples, tokenizer, data_args):
-    prefix = tokenizer.bos_token # example
+    prefix = tokenizer.bos_token
     max_target_length = data_args.max_target_length
     padding = "max_length" if data_args.pad_to_max_length else False
 
