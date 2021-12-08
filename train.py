@@ -26,6 +26,7 @@ from args import (
 )
 
 from dataloader import SumDataset
+from lstm.lstm_model import RobertaLSTMForConditionalGeneration
 from preprocessor import Filter
 from transformers.trainer_utils import get_last_checkpoint
 
@@ -110,12 +111,19 @@ def main():
         cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast_tokenizer
     )
-    model = AutoModelForSeq2SeqLM.from_pretrained(
-        model_args.model_name_or_path,
-        from_tf=bool(".ckpt" in model_args.model_name_or_path),
-        config=config,
-        cache_dir=model_args.cache_dir
-    )
+
+    # setting for seq2seq trainer
+    config.is_encoder_decoder = True
+    config.decoder_start_token_id = tokenizer.bos_token_id
+    model = RobertaLSTMForConditionalGeneration(model_args.model_name_or_path, config=config)
+
+    # model = AutoModelForSeq2SeqLM.from_pretrained(
+    #     model_args.model_name_or_path,
+    #     from_tf=bool(".ckpt" in model_args.model_name_or_path),
+    #     config=config,
+    #     cache_dir=model_args.cache_dir
+    # )
+
     
     prep_fn  = partial(preprocess_function, tokenizer=tokenizer, data_args=data_args)
     train_dataset = train_dataset.map(
