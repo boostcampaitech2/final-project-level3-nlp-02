@@ -86,7 +86,7 @@ def main():
 
     train_dataset = train_dataset.shuffle(training_args.seed)
     valid_dataset = valid_dataset.shuffle(training_args.seed)
-    print('** Dataset example', train_dataset[0]['title'], train_dataset[0]['title'], sep = '\n')
+    print('** Dataset example', train_dataset[0]['title'], train_dataset[1]['title'], sep = '\n')
 
     column_names = train_dataset.column_names
     if data_args.relative_eval_steps :
