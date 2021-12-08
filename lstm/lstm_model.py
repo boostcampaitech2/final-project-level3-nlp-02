@@ -13,11 +13,11 @@ from transformers.modeling_outputs import (Seq2SeqLMOutput,
 
 from transformers.models.roberta.configuration_roberta import RobertaConfig
 from transformers.models.roberta.modeling_roberta import (
+    RobertaPooler,
     RobertaPreTrainedModel,
     RobertaEmbeddings,
     RobertaModel,
     RobertaLMHead,
-    RobertaPooler,
 )
 
 logger = logging.get_logger(__name__)
@@ -45,13 +45,15 @@ class LstmDecoder(nn.Module) :
 
         self.layer = nn.LSTM(input_size=config.hidden_size,
             hidden_size=config.hidden_size,
-            num_layers=config.num_hidden_layers,
+            num_layers=self.config.num_hidden_layers,
             dropout=config.hidden_dropout_prob,
             batch_first=True,
             bidirectional=False
         )
 
-        self.layernorm = nn.LayerNorm(config.hidden_size)
+        self.proj_layer = nn.Linear(config.hidden_size, config.hidden_size)
+        self.layer_norm = nn.LayerNorm(config.hidden_size)
+
         self.gradient_checkpointing = False
 
     def get_input_embeddings(self):
@@ -107,13 +109,14 @@ class LstmDecoder(nn.Module) :
             inputs_embeds=inputs_embeds,
         )
 
-        h_0 = encoder_hidden_states.unsqueeze(0) # cls token encoded vector (batch_size, hidden_size)
-        h_0 = h_0.repeat((self.config.num_hidden_layers,1,1))
-        c_0 = torch.zeros(h_0.shape).to(device)
+        # cls token encoded vector (batch_size, hidden_size)
+        h_0 = encoder_hidden_states.unsqueeze(0) 
+        h_0 = h_0.repeat((self.config.num_hidden_layers, 1, 1))
+        c_0 = h_0.clone()
 
-        lstm_output, (h_n,c_n) = self.layer(hidden_states, (h_0, c_0))
-        lstm_output = self.layernorm(lstm_output)
-    
+        lstm_output, (h_n, c_n) = self.layer(hidden_states, (h_0, c_0)) # lstm output (batch_size, seq_size, intermediate_size)
+        lstm_output = self.layer_norm(lstm_output)
+
         if output_hidden_states :
             all_hidden_states = all_hidden_states + (h_n,)
 
@@ -128,13 +131,13 @@ class LstmDecoder(nn.Module) :
             last_hidden_state=lstm_output, hidden_states=all_hidden_states
         )
 
-
 class RobertaModelWithLSTM(RobertaPreTrainedModel):
     def __init__(self, model_name:str, config: RobertaConfig):
         super().__init__(config)
         self.config = config
         
         self.encoder = RobertaModel.from_pretrained(model_name, config=config)
+        
         self.shared = self.encoder.embeddings
         self.decoder = LstmDecoder(config, self.shared)
         self.pooler = RobertaPooler(config)
@@ -197,8 +200,9 @@ class RobertaModelWithLSTM(RobertaPreTrainedModel):
                 hidden_states=encoder_outputs[2] if output_hidden_states==True else None,
             )
 
-        hidden_outputs = encoder_outputs[0]
-        hidden_outputs = self.pooler(hidden_outputs)
+        hidden_outputs = encoder_outputs[0] # cls token - (batch_size, hidden_size)
+        hidden_outputs = self.pooler(hidden_outputs) # hidden states - (batch_size, intermediate_size)
+
         decoder_outputs = self.decoder(
             input_ids=decoder_input_ids,
             encoder_hidden_states=hidden_outputs,
@@ -216,7 +220,6 @@ class RobertaModelWithLSTM(RobertaPreTrainedModel):
             encoder_last_hidden_state=encoder_outputs.last_hidden_state,
             encoder_hidden_states=encoder_outputs.hidden_states,
         )
-
 
 class RobertaLSTMForConditionalGeneration(RobertaPreTrainedModel):
     base_model_prefix = "model"
