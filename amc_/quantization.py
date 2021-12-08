@@ -14,6 +14,7 @@ def dynamic_quantization(
     test_dataset = 'metamong1/summarization_paper',
     test_dataset_size = 100,
     test_categories='rouge,time,size',
+    tokenizer=None,
     model = None,
     test=True,
 ):
@@ -23,12 +24,14 @@ def dynamic_quantization(
         model = AutoModelForSeq2SeqLM.from_pretrained(check_point)
         model_quantized = quantize_dynamic(model, {nn.Linear}, dtype=torch.qint8)
 
-    if test:
+    if test and not check_point:
         performance_test.performance_test(
+            check_point=check_point,
             test_dataset=test_dataset,
             test_dataset_size=test_dataset_size,
             cpu_flag=True,
             test_categories=test_categories,
+            tokenizer=tokenizer,
             model=model_quantized, 
         )
     
@@ -40,11 +43,12 @@ def half_quantization(
     check_point='gogamza/kobart-summarization',
     test_dataset = 'metamong1/summarization_paper',
     test_dataset_size = 100,
-    cpu_flag=False,
     test_categories='rouge,time,size',
+    tokenizer=None,
     model = None,
     test=True
 ):
+    
     if model:
         model.half()
         for layer in model.modules():
@@ -52,45 +56,52 @@ def half_quantization(
                 layer.float()
     elif check_point:
         model = AutoModelForSeq2SeqLM.from_pretrained(check_point)
-        model.half()
+        model = model.half()
+        
         for layer in model.modules():
             if isinstance(layer, nn.BatchNorm2d):
                 layer.float()
     
     if test:
         performance_test.performance_test(
+            check_point=check_point,
             test_dataset=test_dataset,
             test_dataset_size=test_dataset_size,
-            cpu_flag=True,
+            cpu_flag=False,
             test_categories=test_categories,
-            model=model, 
+            tokenizer=tokenizer,
+            model=model,
         )
     
     return model
 
 
 def main(args):
+    tokenizer = AutoTokenizer.from_pretrained(args.check_point)
+
     if args.quantization_type == 'half_quantization':
         model = half_quantization(
             check_point=args.check_point,
             test_dataset=args.test_dataset,
             test_dataset_size=args.test_dataset_size,
-            cpu_flag=args.cpu_flag,
             test_categories=args.test_categories,
+            tokenizer=tokenizer,
             test= args.no_test_flag,
         )
     elif args.quantization_type == 'dynamic_quantization':
-        model = half_quantization(
+        model = dynamic_quantization(
             check_point=args.check_point,
             test_dataset=args.test_dataset,
             test_dataset_size=args.test_dataset_size,
             test_categories=args.test_categories,
+            tokenizer=tokenizer,
             test= args.no_test_flag,
         )
     
     if args.save_dir:
-        torch.save(model.state_dict(), args.save_dir)
-    
+        model.save_pretrained(args.save_dir)
+        tokenizer.save_pretrained(args.save_dir)
+        torch.save(model.state_dict(), args.save_dir+'.pt')
 
 
 if __name__ == '__main__':

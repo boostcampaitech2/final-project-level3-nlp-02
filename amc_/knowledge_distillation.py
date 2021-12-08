@@ -37,6 +37,7 @@ class DistillationTrainer(Trainer):
 
         loss = self.args.alpha * loss_cross_entropy + (1. - self.args.alpha) * loss_kd
         
+        print('loss:', round(loss.item(), 4), 'loss_ce:', round(loss_cross_entropy.item(), 4), 'loss_kd:', round(loss_kd.item(), 4))
         # Return weighted student loss
         return (loss, outputs_student) if return_outputs else loss
 

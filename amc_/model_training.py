@@ -36,23 +36,23 @@ seed = 42
 
 train_size = 5000
 eval_size = 500
-check_point = "gogamza/kobart-summarization"
+check_point = 'encoder_decoder_pruned_last_5-finetuned-5000/checkpoint-12500'#"gogamza/kobart-summarization"
 max_input_length = 512
 max_target_length = 30
 
 batch_size = 8
-num_train_epochs = 2
+num_train_epochs = 10
 learning_rate=5.6e-5
 weight_decay = 0.01
-logging_steps = 100
+logging_steps = 500
 model_name = check_point.split("/")[-1]
 
 is_distillation = True
 if is_distillation:
-    student_check_point = "encoder_decoder_pruned_last_3"
-    teacher_check_point = "kobart-summarization-finetuned-paper-sample-size-1000/checkpoint-1000"
-    alpha=0.5
-    temperature = 2.0
+    student_check_point = 'encoder_decoder_pruned_last_3-finetuned-5000/checkpoint-6000' #"encoder_decoder_pruned_last_5"
+    teacher_check_point = "kobart-summarization-finetuned-5000/checkpoint-1000"
+    alpha=0
+    temperature = 1
 
 
 # # Loading Dataset
@@ -206,7 +206,7 @@ if is_distillation:
         eval_dataset=tokenized_eval_dataset,
         data_collator=data_collator,
         tokenizer=tokenizer,
-        compute_metrics=compute_metrics,
+        # compute_metrics=compute_metrics,
     )
 else:
     trainer = Seq2SeqTrainer(

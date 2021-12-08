@@ -21,6 +21,7 @@ def performance_test(
     test_dataset_size = 100,
     cpu_flag=False,
     test_categories='rouge,time,size',
+    tokenizer=None,
     model=None,
     seed=42,
     args=None
@@ -41,13 +42,14 @@ def performance_test(
     # 데이터셋 준비
     dataset = datasets.load_dataset(test_dataset, use_auth_token=api_token)
     test_dataset = dataset['validation'].shuffle(seed=seed).filter(lambda x: len(x['text'])< 500).select(range(test_dataset_size))
-
+    
     # 토크나이저 준비
-    tokenizer = AutoTokenizer.from_pretrained(check_point)
+    if not tokenizer:
+        tokenizer = AutoTokenizer.from_pretrained(check_point)
 
     # 모델 준비
     if not model:
-        model = AutoModelForSeq2SeqLM.from_pretrained(check_point)
+        model = AutoModelForSeq2SeqLM.from_pretrained(check_point, torch_dtype='auto')
     
     model = model.to(device)
 
