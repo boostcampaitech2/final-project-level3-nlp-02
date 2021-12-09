@@ -24,7 +24,7 @@ def dynamic_quantization(
         model = AutoModelForSeq2SeqLM.from_pretrained(check_point)
         model_quantized = quantize_dynamic(model, {nn.Linear}, dtype=torch.qint8)
 
-    if test and not check_point:
+    if test:
         performance_test.performance_test(
             check_point=check_point,
             test_dataset=test_dataset,
