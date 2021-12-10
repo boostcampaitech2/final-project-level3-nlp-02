@@ -25,6 +25,9 @@ from args import (
     CustomSeq2SeqTrainingArguments
 )
 
+from trainer import Seq2SeqTrainerWithDocType
+from models.bart_doctype import BartWithDocTypeConfig, BartWithDocTypeForConditionalGeneration
+
 from dataloader import SumDataset
 from processor import preprocess_function
 from rouge import compute_metrics
@@ -67,11 +70,11 @@ def main():
     USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")
 
     train_dataset = SumDataset(
-    data_args.dataset_name,
-    'train',
-    shuffle_seed=training_args.seed,
-    ratio=data_args.relative_sample_ratio,
-    USE_AUTH_TOKEN=USE_AUTH_TOKEN
+        data_args.dataset_name,
+        'train',
+        shuffle_seed=training_args.seed,
+        ratio=data_args.relative_sample_ratio,
+        USE_AUTH_TOKEN=USE_AUTH_TOKEN
     ).load_data()
 
     valid_dataset = SumDataset(
@@ -106,9 +109,10 @@ def main():
     print(f"valid_dataset length: {len(valid_dataset)}")
     print(f"eval_steps: {training_args.eval_steps}")
 
-    config = AutoConfig.from_pretrained(
+    config = BartWithDocTypeConfig.from_pretrained(
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,
-        cache_dir=model_args.cache_dir
+        doc_type_size=100+1,
+        cache_dir=model_args.cache_dir,
     )
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
@@ -119,12 +123,12 @@ def main():
     def model_init():
         # https://discuss.huggingface.co/t/fixing-the-random-seed-in-the-trainer-does-not-produce-the-same-results-across-runs/3442
         # Producibility parameter initialization
-        return AutoModelForSeq2SeqLM.from_pretrained(
+        return BartWithDocTypeForConditionalGeneration.from_pretrained(
             model_args.model_name_or_path,
             from_tf=bool(".ckpt" in model_args.model_name_or_path),
             config=config
         )
-    
+
     prep_fn  = partial(preprocess_function, tokenizer=tokenizer, data_args=data_args)
     train_dataset = train_dataset.map(
         prep_fn,
@@ -147,10 +151,11 @@ def main():
     label_pad_token_id = -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
     data_collator = DataCollatorForSeq2Seq(
         tokenizer,
+        padding=True,
         label_pad_token_id=label_pad_token_id,
         pad_to_multiple_of=8 if training_args.fp16 else None,
     )
-    
+
     # wandb
     load_dotenv(dotenv_path=log_args.dotenv_path)
     WANDB_AUTH_KEY = os.getenv("WANDB_AUTH_KEY")
@@ -164,7 +169,7 @@ def main():
     wandb.config.update(training_args)
     
     comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
-    trainer = Seq2SeqTrainer(
+    trainer = Seq2SeqTrainerWithDocType(
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=valid_dataset,
