@@ -1,4 +1,6 @@
 
+import copy
+
 import torch
 import torch.utils.checkpoint
 from torch import nn
@@ -7,15 +9,13 @@ from typing import Optional
 
 from transformers import logging
 from transformers.modeling_outputs import (Seq2SeqLMOutput, 
-    BaseModelOutput,
+    BaseModelOutputWithPoolingAndCrossAttentions,
     Seq2SeqModelOutput,
 )
 
 from transformers.models.roberta.configuration_roberta import RobertaConfig
 from transformers.models.roberta.modeling_roberta import (
-    RobertaPooler,
     RobertaPreTrainedModel,
-    RobertaEmbeddings,
     RobertaModel,
     RobertaLMHead,
 )
@@ -32,124 +32,16 @@ def shift_tokens_right(input_ids: torch.Tensor, pad_token_id: int, decoder_start
     shifted_input_ids.masked_fill_(shifted_input_ids == -100, pad_token_id)
     return shifted_input_ids
 
-class LstmDecoder(nn.Module) :
-    def __init__(self, config:RobertaConfig,  embeddings: Optional[RobertaEmbeddings] = None) :
-        super().__init__()
-        self.config = config
-
-        self.padding_idx = config.pad_token_id
-        if embeddings is not None:
-            self.embeddings = embeddings
-        else:
-            self.embeddings = RobertaEmbeddings(config)
-
-        self.layer = nn.LSTM(input_size=config.hidden_size,
-            hidden_size=config.hidden_size,
-            num_layers=self.config.num_hidden_layers,
-            dropout=config.hidden_dropout_prob,
-            batch_first=True,
-            bidirectional=False
-        )
-
-        self.proj_layer = nn.Linear(config.hidden_size, config.hidden_size)
-        self.layer_norm = nn.LayerNorm(config.hidden_size)
-
-        self.gradient_checkpointing = False
-
-    def get_input_embeddings(self):
-        return self.embeddings
-
-    def set_input_embeddings(self, value):
-        assert isinstance(value, RobertaEmbeddings)
-        self.embeddings = value
-
-    def forward(
-        self,
-        input_ids=None,
-        position_ids=None,
-        token_type_ids=None,
-        encoder_hidden_states=None,
-        inputs_embeds=None,
-        output_hidden_states=None,
-        output_attentions=None,
-        return_dict=None,
-    ):
-
-        all_hidden_states = () if output_hidden_states else None
-
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
-        if input_ids is not None and inputs_embeds is not None:
-            raise ValueError("You cannot specify both decoder_input_ids and decoder_inputs_embeds at the same time")
-        elif input_ids is not None:
-            input_shape = input_ids.size()
-            input_ids = input_ids.view(-1, input_shape[-1])
-        elif inputs_embeds is not None:
-            input_shape = inputs_embeds.size()[:-1]
-        else:
-            raise ValueError("You have to specify either decoder_input_ids or decoder_inputs_embeds")
-
-        batch_size, seq_length = input_shape
-        device = input_ids.device if input_ids is not None else inputs_embeds.device
-
-        if token_type_ids is None:
-            if hasattr(self.embeddings, "token_type_ids"):
-                buffered_token_type_ids = self.embeddings.token_type_ids[:, :seq_length]
-                buffered_token_type_ids_expanded = buffered_token_type_ids.expand(batch_size, seq_length)
-                token_type_ids = buffered_token_type_ids_expanded
-            else:
-                token_type_ids = torch.zeros(input_shape, dtype=torch.long, device=device)
-
-        all_hidden_states = () if output_hidden_states is not None else None
-
-        hidden_states = self.embeddings(
-            input_ids=input_ids,
-            position_ids=position_ids,
-            token_type_ids=token_type_ids,
-            inputs_embeds=inputs_embeds,
-        )
-
-        # cls token encoded vector (batch_size, hidden_size)
-        h_0 = encoder_hidden_states.unsqueeze(0) 
-        h_0 = h_0.repeat((self.config.num_hidden_layers, 1, 1))
-        c_0 = h_0.clone()
-
-        lstm_output, (h_n, c_n) = self.layer(hidden_states, (h_0, c_0)) # lstm output (batch_size, seq_size, intermediate_size)
-        lstm_output = self.layer_norm(lstm_output)
-
-        if output_hidden_states :
-            all_hidden_states = all_hidden_states + (h_n,)
-
-        if not return_dict:
-            return tuple(
-                v
-                for v in [lstm_output, all_hidden_states]
-                if v is not None
-            )
-
-        return BaseModelOutput(
-            last_hidden_state=lstm_output, hidden_states=all_hidden_states
-        )
-
-class RobertaModelWithLSTM(RobertaPreTrainedModel):
+class RobertaModelForSeq2Seq(RobertaPreTrainedModel):
     def __init__(self, model_name:str, config: RobertaConfig):
         super().__init__(config)
         self.config = config
+        decoder_config = copy.deepcopy(config)
+        decoder_config.is_decoder=True
+        decoder_config.add_cross_attention=True
         
         self.encoder = RobertaModel.from_pretrained(model_name, config=config)
-        
-        self.shared = self.encoder.embeddings
-        self.decoder = LstmDecoder(config, self.shared)
-        self.pooler = RobertaPooler(config)
-
-    def get_input_embeddings(self):
-        return self.shared
-
-    def set_input_embeddings(self, value):
-        assert isinstance(value, RobertaEmbeddings)
-        self.shared = value
-        self.encoder.embeddings = self.shared
-        self.decoder.embeddings = self.shared
+        self.decoder = RobertaModel.from_pretrained(model_name, config=decoder_config)
 
     def get_encoder(self):
         return self.encoder
@@ -162,12 +54,16 @@ class RobertaModelWithLSTM(RobertaPreTrainedModel):
         input_ids=None,
         attention_mask=None,
         decoder_input_ids=None,
+        decoder_attention_mask=None,
         head_mask=None,
+        decoder_head_mask=None,
         encoder_outputs=None,
+        past_key_values=None,
         inputs_embeds=None,
         decoder_inputs_embeds=None,
-        output_hidden_states=None,
+        use_cache=None,
         output_attentions=None,
+        output_hidden_states=None,
         return_dict=None,
     ):
 
@@ -178,35 +74,46 @@ class RobertaModelWithLSTM(RobertaPreTrainedModel):
                 input_ids, self.config.pad_token_id, self.config.decoder_start_token_id
             )
 
+        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
+        use_cache = use_cache if use_cache is not None else self.config.use_cache
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-        
+
         if encoder_outputs is None:
             encoder_outputs = self.encoder(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
                 head_mask=head_mask,
                 inputs_embeds=inputs_embeds,
+                output_attentions=output_attentions,
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
             )
 
         # If the user passed a tuple for encoder_outputs, we wrap it in a BaseModelOutput when return_dict=True
-        elif return_dict and not isinstance(encoder_outputs, BaseModelOutput):
-            encoder_outputs = BaseModelOutput(
+        elif return_dict and not isinstance(encoder_outputs, BaseModelOutputWithPoolingAndCrossAttentions):
+            encoder_outputs = BaseModelOutputWithPoolingAndCrossAttentions(
                 last_hidden_state=encoder_outputs[0],
-                hidden_states=encoder_outputs[2] if output_hidden_states==True else None,
+                pooler_output=encoder_outputs[1],
+                past_key_values=encoder_outputs[2] if len(encoder_outputs) > 2 else None,
+                hidden_states=encoder_outputs[3] if len(encoder_outputs) > 3 else None,
+                attentions=encoder_outputs[4] if len(encoder_outputs) > 4 else None,
+                cross_attentions=encoder_outputs[5] if len(encoder_outputs) > 5 else None,
             )
-
-        hidden_outputs = encoder_outputs[0] # cls token - (batch_size, hidden_size)
-        hidden_outputs = self.pooler(hidden_outputs) # hidden states - (batch_size, intermediate_size)
-
+        
+        # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
         decoder_outputs = self.decoder(
             input_ids=decoder_input_ids,
-            encoder_hidden_states=hidden_outputs,
+            attention_mask=decoder_attention_mask,
+            encoder_hidden_states=encoder_outputs[0],
+            encoder_attention_mask=attention_mask,
+            head_mask=decoder_head_mask,
+            past_key_values=past_key_values,
             inputs_embeds=decoder_inputs_embeds,
+            use_cache=use_cache,
+            output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
@@ -216,18 +123,23 @@ class RobertaModelWithLSTM(RobertaPreTrainedModel):
 
         return Seq2SeqModelOutput(
             last_hidden_state=decoder_outputs.last_hidden_state,
+            past_key_values=decoder_outputs.past_key_values,
             decoder_hidden_states=decoder_outputs.hidden_states,
+            decoder_attentions=decoder_outputs.attentions,
+            cross_attentions=decoder_outputs.cross_attentions,
             encoder_last_hidden_state=encoder_outputs.last_hidden_state,
             encoder_hidden_states=encoder_outputs.hidden_states,
+            encoder_attentions=encoder_outputs.attentions,
         )
 
-class RobertaLSTMForConditionalGeneration(RobertaPreTrainedModel):
+
+class RobertaForConditionalGeneration(RobertaPreTrainedModel):
     base_model_prefix = "model"
     _keys_to_ignore_on_load_missing = [r"lm_head\.bias", r"lm_head\.weight"]
 
     def __init__(self, model_name: str, config: RobertaConfig):
         super().__init__(config)
-        self.model = RobertaModelWithLSTM(model_name, config)
+        self.model = RobertaModelForSeq2Seq(model_name, config)
         self.lm_head = RobertaLMHead(config)
 
     def get_encoder(self):
@@ -235,10 +147,6 @@ class RobertaLSTMForConditionalGeneration(RobertaPreTrainedModel):
 
     def get_decoder(self):
         return self.model.get_decoder()
-
-    def resize_token_embeddings(self, config: RobertaConfig) -> RobertaEmbeddings:
-        new_embeddings = RobertaEmbeddings(config)
-        return new_embeddings
 
     def get_output_embeddings(self):
         return self.lm_head
@@ -251,17 +159,20 @@ class RobertaLSTMForConditionalGeneration(RobertaPreTrainedModel):
         input_ids=None,
         attention_mask=None,
         decoder_input_ids=None,
+        decoder_attention_mask=None,
         head_mask=None,
+        decoder_head_mask=None,
         encoder_outputs=None,
+        past_key_values=None,
         inputs_embeds=None,
         decoder_inputs_embeds=None,
         labels=None,
+        use_cache=None,
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
     ):
 
-        attention_mask = None
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         if labels is not None:
@@ -275,14 +186,18 @@ class RobertaLSTMForConditionalGeneration(RobertaPreTrainedModel):
             attention_mask=attention_mask,
             decoder_input_ids=decoder_input_ids,
             encoder_outputs=encoder_outputs,
+            decoder_attention_mask=decoder_attention_mask,
             head_mask=head_mask,
+            decoder_head_mask=decoder_head_mask,
+            past_key_values=past_key_values,
             inputs_embeds=inputs_embeds,
             decoder_inputs_embeds=decoder_inputs_embeds,
+            use_cache=use_cache,
+            output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
-
-        lm_logits = self.lm_head(outputs[0]) # decoder output hidden states
+        lm_logits = self.lm_head(outputs[0]) 
 
         masked_lm_loss = None
         if labels is not None:
@@ -296,24 +211,39 @@ class RobertaLSTMForConditionalGeneration(RobertaPreTrainedModel):
         return Seq2SeqLMOutput(
             loss=masked_lm_loss,
             logits=lm_logits,
+            past_key_values=outputs.past_key_values,
             decoder_hidden_states=outputs.decoder_hidden_states,
+            decoder_attentions=outputs.decoder_attentions,
+            cross_attentions=outputs.cross_attentions,
             encoder_last_hidden_state=outputs.encoder_last_hidden_state,
             encoder_hidden_states=outputs.encoder_hidden_states,
+            encoder_attentions=outputs.encoder_attentions,
         )
 
     def prepare_inputs_for_generation(
         self,
         decoder_input_ids,
+        past=None,
+        attention_mask=None,
         head_mask=None,
+        decoder_head_mask=None,
+        use_cache=None,
         encoder_outputs=None,
         **kwargs
     ):
+        # cut decoder_input_ids if past is used
+        if past is not None:
+            decoder_input_ids = decoder_input_ids[:, -1:]
 
         return {
             "input_ids": None,  # encoder_outputs is defined. input_ids not needed
             "encoder_outputs": encoder_outputs,
+            "past_key_values": past,
             "decoder_input_ids": decoder_input_ids,
+            "attention_mask": attention_mask,
             "head_mask": head_mask,
+            "decoder_head_mask": decoder_head_mask,
+            "use_cache": use_cache,  # change this to avoid caching (presumably for debugging)
         }
 
     def prepare_decoder_input_ids_from_labels(self, labels: torch.Tensor):
