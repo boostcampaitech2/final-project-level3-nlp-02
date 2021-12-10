@@ -49,6 +49,14 @@ class RobertaModelForSeq2Seq(RobertaPreTrainedModel):
     def get_decoder(self):
         return self.decoder
 
+    def set_encoder(self, encoder):
+        assert isinstance(encoder, RobertaModel)
+        self.encoder = encoder
+
+    def set_decoder(self, decoder):
+        assert isinstance(decoder, RobertaModel)
+        self.decoder = decoder
+
     def forward(
         self,
         input_ids=None,
