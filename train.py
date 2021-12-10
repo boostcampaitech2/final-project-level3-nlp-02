@@ -1,5 +1,13 @@
 import os
+import importlib.util
+import random
+import math
+from dotenv import load_dotenv
+
+import numpy as np
 import torch
+import torch.nn as nn
+import wandb
 
 from functools import partial
 from transformers import (
@@ -9,88 +17,169 @@ from transformers import (
     HfArgumentParser,
     DataCollatorForSeq2Seq,
     Seq2SeqTrainer,
-    Seq2SeqTrainingArguments,
-    set_seed
+    EarlyStoppingCallback
 )
 
-from arguments import (
-    ModelArguments,
+from args import (
     DataTrainingArguments,
     LoggingArguments,
+    ModelArguments,
+    CustomSeq2SeqTrainingArguments
 )
-
-from transformers.trainer_utils import get_last_checkpoint
 
 from dataloader import SumDataset
 from processor import preprocess_function
 from rouge import compute_metrics
 
+from trainer import Seq2SeqTrainerWithDocType
+
+from model.modeling_longformerbart import LongformerBartConfig, LongformerBartWithDoctypeForConditionalGeneration
+from transformers.models.bart.modeling_bart import BartLearnedPositionalEmbedding
+
+def seed_everything(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    np.random.seed(seed)
+    random.seed(seed)
+    
+def make_model_for_changing_postion_embedding(config,data_args,model_args):
+    tmp_config = config
+    tmp_config.max_target_positions = 1026
+    tmp_config.max_position_embeddings = 1026
+    model = LongformerBartWithDoctypeForConditionalGeneration.from_pretrained(model_args.model_name_or_path, config=tmp_config)
+    sd = model.state_dict()
+    origin_enc_pos_embeds = sd['model.encoder.embed_positions.weight']
+    origin_dec_pos_embeds = sd['model.decoder.embed_positions.weight']
+    new_config = model.config
+    new_config.max_position_embeddings = data_args.max_source_length
+    new_config.max_target_positions = data_args.max_target_length
+    new_config.attention_window_size = model_args.attention_window_size
+    
+    new_model = LongformerBartWithDoctypeForConditionalGeneration(config=new_config)
+    correctly_shaped_enc_pos_weight = new_model.model.encoder.embed_positions.weight.detach()
+    if new_config.max_position_embeddings+2 > origin_dec_pos_embeds.shape[0]:
+        correctly_shaped_enc_pos_weight[:origin_enc_pos_embeds.shape[0]] = origin_enc_pos_embeds
+    else:
+        correctly_shaped_enc_pos_weight[:new_config.max_position_embeddings+2] = origin_dec_pos_embeds[:new_config.max_position_embeddings+2]
+        correctly_shaped_enc_pos_weight = correctly_shaped_enc_pos_weight[:new_config.max_position_embeddings+2]
+    correctly_shaped_enc_pos_weight = nn.Parameter(correctly_shaped_enc_pos_weight)
+    sd['model.encoder.embed_positions.weight'] = correctly_shaped_enc_pos_weight
+
+    correctly_shaped_dec_pos_weight = new_model.model.decoder.embed_positions.weight.detach()
+    if new_config.max_target_positions+2 > origin_dec_pos_embeds.shape[0]:
+        correctly_shaped_dec_pos_weight[:origin_dec_pos_embeds.shape[0]] = origin_dec_pos_embeds
+    else:
+        correctly_shaped_dec_pos_weight[:new_config.max_target_positions+2] = origin_dec_pos_embeds[:new_config.max_target_positions+2]
+        correctly_shaped_dec_pos_weight = correctly_shaped_dec_pos_weight[:new_config.max_target_positions+2]
+    correctly_shaped_dec_pos_weight = nn.Parameter(correctly_shaped_dec_pos_weight)
+    sd['model.decoder.embed_positions.weight'] = correctly_shaped_dec_pos_weight
+
+    new_model.model.encoder.embed_positions = BartLearnedPositionalEmbedding(new_config.max_position_embeddings, new_config.d_model)
+    new_model.model.decoder.embed_positions = BartLearnedPositionalEmbedding(new_config.max_target_positions, new_config.d_model)
+    new_model.load_state_dict(sd, strict=True)
+    new_model_path = f"{model_args.longformerbart_path}_{new_config.max_position_embeddings}_{new_config.max_target_positions}"
+    new_model.save_pretrained(new_model_path)
+    print(f"save LongformerBart Model {new_model_path}")
+ 
 
 def main():
+    ## Arguments setting
     parser = HfArgumentParser(
-        (ModelArguments, DataTrainingArguments, LoggingArguments, Seq2SeqTrainingArguments)
+        (ModelArguments, DataTrainingArguments, LoggingArguments, CustomSeq2SeqTrainingArguments)
     )
     model_args, data_args, log_args, training_args = parser.parse_args_into_dataclasses()
+    training_args.model_path = f"{model_args.longformerbart_path}_{data_args.max_source_length}_{data_args.max_target_length}"
     
+    seed_everything(training_args.seed)
+    if training_args.do_eval :
+        training_args.predict_with_generate = True
+    print(f"** Train mode: { training_args.do_train}")
+    print(f"** model is from {model_args.model_name_or_path}")
+    print(f"** data is from {data_args.dataset_name}")
+    print(f'** max_target_length:', data_args.max_target_length)
 
-    print(f"model is from {model_args.model_name_or_path}")
-    print(f"data is from {data_args.dataset_name}")
-
-    last_checkpoint = None
     if os.path.isdir(training_args.output_dir) and training_args.do_train and not training_args.overwrite_output_dir:
-        last_checkpoint = get_last_checkpoint(training_args.output_dir)
-        if last_checkpoint is None and len(os.listdir(training_args.output_dir)) > 0:
-            raise ValueError(
-                f"Output directory ({training_args.output_dir}) already exists and is not empty. "
-                "Use --overwrite_output_dir to overcome."
-            )
+        raise ValueError(
+            f"Output directory ({training_args.output_dir}) already exists and is not empty. "
+            "Use --overwrite_output_dir to overcome."
+        )
     
-    set_seed(training_args.seed)
-
+    ## load and process dataset
     types = data_args.dataset_name.split(',')
     data_args.dataset_name = ['metamong1/summarization_' + dt for dt in types]
     
-    train_dataset = SumDataset(data_args.dataset_name, 'train').load_data()
-    train_dataset = train_dataset.select(range(500)) ## test
+    load_dotenv(dotenv_path=data_args.use_auth_token_path)
+    USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")
 
-    valid_dataset = SumDataset(data_args.dataset_name, 'validation').load_data()
-    valid_dataset = valid_dataset.select(range(500)) ## test
+    train_dataset = SumDataset(
+        data_args.dataset_name,
+        'train',
+        shuffle_seed=training_args.seed,
+        ratio=data_args.relative_sample_ratio,
+        USE_AUTH_TOKEN=USE_AUTH_TOKEN
+    ).load_data()
+
+    valid_dataset = SumDataset(
+        data_args.dataset_name,
+        'validation',
+        shuffle_seed=training_args.seed,
+        ratio=data_args.relative_sample_ratio,
+        USE_AUTH_TOKEN=USE_AUTH_TOKEN
+    ).load_data()
     
-    if training_args.do_train:
-        column_names = train_dataset.column_names
-    elif training_args.do_eval:
-        training_args.predict_with_generate = True
-        column_names = valid_dataset.column_names
+    train_dataset.cleanup_cache_files()
+    valid_dataset.cleanup_cache_files()
 
-    print('max_target_length:', data_args.max_target_length)
-    print('predict_with_generate:', training_args.predict_with_generate)
+    train_dataset = train_dataset.shuffle(training_args.seed)
+    valid_dataset = valid_dataset.shuffle(training_args.seed)
+    print('** Dataset example', train_dataset[0]['title'], train_dataset[0]['title'], sep = '\n')
+
+    column_names = train_dataset.column_names
+    if data_args.relative_eval_steps :
+        ## Train 동안 relative_eval_steps count 회수 만큼 evaluation 
+        ## 전체 iteration에서 eval 횟수로 나누어 evaluation step
+        iter_by_epoch = math.ceil(len(train_dataset)/training_args.per_device_train_batch_size)
+        iterations =  iter_by_epoch * training_args.num_train_epochs
+        training_args.eval_steps = int(iterations // data_args.relative_eval_steps)
+        training_args.save_steps = training_args.eval_steps ## save step은 eval step의 배수여야 함
+
+    print(f"train_dataset length: {len(train_dataset)}")
+    print(f"valid_dataset length: {len(valid_dataset)}")
+    print(f"eval_steps: {training_args.eval_steps}")
+
+    config = LongformerBartConfig.from_pretrained(
+            model_args.config_name if model_args.config_name else model_args.model_name_or_path)
     
-
-    config = AutoConfig.from_pretrained(
-        model_args.config_name if model_args.config_name else model_args.model_name_or_path,
-        cache_dir=model_args.cache_dir ##
-    )
+    if not os.path.exists(training_args.model_path):
+        make_model_for_changing_postion_embedding(config,data_args,model_args)
+    
+    config.max_position_embeddings = data_args.max_source_length+2
+    config.max_target_positions = data_args.max_target_length+2
+    config.attention_window_size = model_args.attention_window_size
+    
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast_tokenizer
     )
 
-    # base model
-    model = AutoModelForSeq2SeqLM.from_pretrained(
-        model_args.model_name_or_path,
-        from_tf=bool(".ckpt" in model_args.model_name_or_path),
-        config=config,
-        cache_dir=model_args.cache_dir
-    )
-
+    def model_init(training_args):
+        # https://discuss.huggingface.co/t/fixing-the-random-seed-in-the-trainer-does-not-produce-the-same-results-across-runs/3442
+        # Producibility parameter initialization
+        model = LongformerBartWithDoctypeForConditionalGeneration.from_pretrained(training_args.model_path)
+        return model
+        
     prep_fn  = partial(preprocess_function, tokenizer=tokenizer, data_args=data_args)
     train_dataset = train_dataset.map(
         prep_fn,
         batched=True,
         num_proc=data_args.preprocessing_num_workers,
         remove_columns=column_names,
-        load_from_cache_file=not data_args.overwrite_cache,
+        load_from_cache_file=False,
+        desc="Running tokenizer on train dataset",
     )
 
     valid_dataset = valid_dataset.map(
@@ -98,37 +187,44 @@ def main():
         batched=True,
         num_proc=data_args.preprocessing_num_workers,
         remove_columns=column_names,
-        load_from_cache_file=not data_args.overwrite_cache,
+        load_from_cache_file=False,
         desc="Running tokenizer on validation dataset",
     )
-
     label_pad_token_id = -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
     data_collator = DataCollatorForSeq2Seq(
         tokenizer,
-        model=model,
         label_pad_token_id=label_pad_token_id,
         pad_to_multiple_of=8 if training_args.fp16 else None,
     )
+
+    # wandb
+    load_dotenv(dotenv_path=log_args.dotenv_path)
+    WANDB_AUTH_KEY = os.getenv("WANDB_AUTH_KEY")
+    wandb.login(key=WANDB_AUTH_KEY)
+
+    wandb.init(
+        entity="final_project",
+        project=log_args.project_name,
+        name=log_args.wandb_unique_tag
+    )
+    wandb.config.update(training_args)
     
     comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
-    trainer = Seq2SeqTrainer(
-        model=model,
+    
+    trainer = Seq2SeqTrainerWithDocType(
         args=training_args,
-        train_dataset=train_dataset if training_args.do_train else None,
-        eval_dataset=valid_dataset if training_args.do_eval else None,
+        train_dataset=train_dataset,
+        eval_dataset=valid_dataset,
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
+        model_init=model_init, ## model 성능 재현
+        callbacks = [EarlyStoppingCallback(early_stopping_patience=training_args.es_patience)] if training_args.es_patience else None
     )
 
     if training_args.do_train:
-        checkpoint = None
-        if training_args.resume_from_checkpoint is not None:
-            checkpoint = training_args.resume_from_checkpoint
-        elif last_checkpoint is not None:
-            checkpoint = last_checkpoint
-        train_result = trainer.train(resume_from_checkpoint=checkpoint)
-        print("#########Train result: ",train_result)
+        train_result = trainer.train()
+        print("#########Train result: #########", train_result)
         trainer.save_model()
 
         metrics = train_result.metrics
@@ -141,16 +237,16 @@ def main():
         trainer.save_metrics("train", metrics)
         trainer.save_state()
 
-
     max_length = (training_args.generation_max_length
         if training_args.generation_max_length is not None
         else data_args.val_max_target_length)
     results = {}
     
     num_beams = data_args.num_beams if data_args.num_beams is not None else training_args.generation_num_beams
-    if training_args.do_eval:
+    if not training_args.do_train and training_args.do_eval:
+
         metrics = trainer.evaluate(max_length=max_length, num_beams=num_beams, metric_key_prefix="eval")
-        print("#########Eval metrics: #########",metrics) 
+        print("#########Eval metrics: #########", metrics) 
         max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(valid_dataset)
         metrics["eval_samples"]=min(max_eval_samples, len(valid_dataset))
 
