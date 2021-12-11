@@ -33,7 +33,7 @@ class ModelArguments :
         metadata={"help": "Where to store the pretrained models downloaded from huggingface.co"},
     )
     attention_window_size: int = field(
-        default=256,
+        default=128,
         metadata={
             "help": "attention window size"
         },

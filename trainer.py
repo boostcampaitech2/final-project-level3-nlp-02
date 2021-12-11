@@ -74,7 +74,7 @@ class Seq2SeqTrainerWithDocType(Seq2SeqTrainer):
         generated_tokens = self.model.generate(
             inputs["input_ids"],
             attention_mask=inputs["attention_mask"],
-            doc_type_ids=inputs["encoder_doc_type_ids"],
+            doc_type_ids=inputs["doc_type_ids"],
             **gen_kwargs,
         )
         # in case the batch is shorter than max length, the output should be padded

@@ -1,3 +1,4 @@
+
 import os
 import importlib.util
 import random
@@ -7,7 +8,7 @@ from dotenv import load_dotenv
 import numpy as np
 import torch
 import torch.nn as nn
-import wandb
+# import wandb
 
 from functools import partial
 from transformers import (
@@ -28,14 +29,14 @@ from args import (
 )
 
 from dataloader import SumDataset
-from processor import preprocess_function
 from rouge import compute_metrics
 
 from trainer import Seq2SeqTrainerWithDocType
 
 from models.modeling_longformerbart import LongformerBartConfig, LongformerBartWithDoctypeForConditionalGeneration
 from models.rebuilding_longformerbart import make_model_for_changing_postion_embedding
-from data_collator import DataCollatorForSeq2SeqWithDocType
+from infilling.collator import DataCollatorForInfilling
+from infilling.processor import preprocess_function
 
 def seed_everything(seed):
     torch.manual_seed(seed)
@@ -75,6 +76,7 @@ def main():
     load_dotenv(dotenv_path=data_args.use_auth_token_path)
     USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")
 
+    # -- Training Dataset
     train_dataset = SumDataset(
         data_args.dataset_name,
         'train',
@@ -90,9 +92,6 @@ def main():
         ratio=data_args.relative_sample_ratio,
         USE_AUTH_TOKEN=USE_AUTH_TOKEN
     ).load_data()
-    
-    train_dataset.cleanup_cache_files()
-    valid_dataset.cleanup_cache_files()
 
     train_dataset = train_dataset.shuffle(training_args.seed)
     valid_dataset = valid_dataset.shuffle(training_args.seed)
@@ -151,24 +150,29 @@ def main():
         load_from_cache_file=False,
         desc="Running tokenizer on validation dataset",
     )
+
     label_pad_token_id = -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
-    data_collator = DataCollatorForSeq2Seq(
+    
+    # Data Collator for Bart Model Pretraining
+    data_collator = DataCollatorForInfilling(
         tokenizer,
+        poisson=3,
         label_pad_token_id=label_pad_token_id,
         pad_to_multiple_of=8 if training_args.fp16 else None,
+        window_size=model_args.attention_window_size
     )
 
     # wandb
-    load_dotenv(dotenv_path=log_args.dotenv_path)
-    WANDB_AUTH_KEY = os.getenv("WANDB_AUTH_KEY")
-    wandb.login(key=WANDB_AUTH_KEY)
+    # load_dotenv(dotenv_path=log_args.dotenv_path)
+    # WANDB_AUTH_KEY = os.getenv("WANDB_AUTH_KEY")
+    # wandb.login(key=WANDB_AUTH_KEY)
 
-    wandb.init(
-        entity="final_project",
-        project=log_args.project_name,
-        name=log_args.wandb_unique_tag
-    )
-    wandb.config.update(training_args)
+    # wandb.init(
+    #     entity="final_project",
+    #     project=log_args.project_name,
+    #     name=log_args.wandb_unique_tag
+    # )
+    # wandb.config.update(training_args)
     
     comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
     
@@ -179,7 +183,7 @@ def main():
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
-        model_init=model_init, ## model 성능 재현
+        model_init=model_init,
         callbacks = [EarlyStoppingCallback(early_stopping_patience=training_args.es_patience)] if training_args.es_patience else None
     )
 

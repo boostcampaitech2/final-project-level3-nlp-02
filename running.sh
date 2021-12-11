@@ -1,19 +1,20 @@
 ## 변경사항: 법률 데이터 미포함, 데이터셋 비율 50%, 정리를 위한 wandb project 변경
 
-## Train
-## 시도해볼 부분: epoch 수정해보기
-## 변경 필요한 arguments: output_dir
+## Pretraining using Infilling
+## 학습 파라미터 : epoch, weight decay, learning rate, warmup steps
 
-python train.py \
+python pretrain.py \
 --do_train \
 --output_dir model/kobart_bV1 \
 --overwrite_output_dir \
 --dataset_name paper,news,magazine \
---num_train_epochs 2 \
---learning_rate 3e-05 \
---max_source_length 4000 \
---max_target_length 200 \
---attention_window_size 128 \
+--overwrite_output_dir True \
+--num_train_epochs 5 \
+--weight_decay 1e-2 \
+--warmup_steps 20000 \
+--learning_rate 5e-05 \
+--max_source_length 2048 \
+--max_target_length 2048 \
 --metric_for_best_model rougeLsum \
 --relative_eval_steps 10 \
 --es_patience 3 \
@@ -21,22 +22,5 @@ python train.py \
 --relative_sample_ratio 0.5 \
 --project_name baseV1.0_Kobart \
 --per_device_train_batch_size 4 \
---wandb_unique_tag longformerBart_t1_1024_128 \
-
-## Eval
-# ## 시도해볼 부분: num_beams
-# ## 변경 필요한 model_name_or_path: output_dir
-# python train.py \
-# --do_eval \
-# --model_name_or_path model/baseV1.0_Kobart \
-# --dataset_name paper,news,magazine \
-# --output_dir evaluation/kobart_eval \
-# --num_beams 3 \
-# --relative_sample_ratio 1 \
-# --project_name baseV1.0_Kobart \
-# --wandb_unique_tag Eval_kobartV1_ep2_lr3e05_len1024_R50
-
-# ## Predict
-# python predict.py \
-# --model_name_or_path baseV1.0_Kobart \
-# --num_beams 3
+--per_device_eval_batch_size 4 \
+--wandb_unique_tag longformerBart_t1_attn128_2048_2048_pretraining \

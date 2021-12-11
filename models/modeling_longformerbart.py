@@ -34,9 +34,9 @@ logger = logging.get_logger(__name__)
 class LongformerBartConfig(BartConfig):
     pad_token_id_idx = 4 # pad token id in Bart Tokenizer
     def __init__(self,
-        attention_window_size:int = 512,
+        attention_window_size:int = 128,
         attention_dropout:float = 0.1,
-        doc_type_size:int = 5,
+        doc_type_size:int = 4,
         architectures:str = 'LongformerBartConditionalGeneration',
         max_position_embeddings:int = 2048,         # from pretrained로 인해서 1026이 입력됨 -> 수정할려면 불러오고 변경을 해야 함
         max_target_positions:int = 1026, # AssertionError: Sequence length should be multiple of 512. Given 1026
@@ -61,7 +61,7 @@ class LongformerBartConfig(BartConfig):
         self.decoder_layers = decoder_layers
         self.encoder_attention_heads = encoder_attention_heads
         self.decoder_attention_heads = decoder_attention_heads
-        self.doc_type_size = self.pad_token_id_idx + doc_type_size
+        self.doc_type_size = doc_type_size
         
         # del self.classif_dropout 
         # del self.extra_pos_embeddings
@@ -132,9 +132,9 @@ class LongformerBartEncoderLayer(nn.Module):
         hidden_states: torch.Tensor,
         attention_mask: torch.Tensor,
         layer_head_mask: torch.Tensor,
-        is_index_masked: torch.Tensor,          # 필수 부분 for longformer
-        is_index_global_attn: torch.Tensor,     # 필수 부분 for longformer
-        is_global_attn:torch.Tensor,            # 필수 부분 for longformer
+        is_index_masked: torch.Tensor,  
+        is_index_global_attn: torch.Tensor,    
+        is_global_attn:torch.Tensor,    
         output_attentions: bool = False,
     ):
 
@@ -143,9 +143,9 @@ class LongformerBartEncoderLayer(nn.Module):
             hidden_states=hidden_states,
             attention_mask=attention_mask,
             layer_head_mask=layer_head_mask,
-            is_index_masked=is_index_masked,            # 필수 부분 for longformer
-            is_index_global_attn=is_index_global_attn,  # 필수 부분 for longformer
-            is_global_attn=is_global_attn,              # 필수 부분 for longformer
+            is_index_masked=is_index_masked,           
+            is_index_global_attn=is_index_global_attn,  
+            is_global_attn=is_global_attn,   
             output_attentions=output_attentions,
         )
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
@@ -198,7 +198,7 @@ class LongformerBartEncoderWithDocType(BartPretrainedModel):
         if doc_type_tokens is not None:
             self.doc_type_tokens = doc_type_tokens
         else:
-            self.doc_type_tokens = nn.Embedding(config.doc_type_size, self.embed_dim, self.padding_idx)
+            self.doc_type_tokens = nn.Embedding(config.doc_type_size, self.embed_dim, 0)
         
         self.embed_positions = BartLearnedPositionalEmbedding(
             self.max_source_positions,
@@ -416,7 +416,7 @@ class LongformerBartModel(BartModel):
         super().__init__(config)
         embed_dim = config.d_model
         self.padding_idx = config.pad_token_id
-        self.doc_type_shared = nn.Embedding(config.doc_type_size,embed_dim, self.padding_idx)
+        self.doc_type_shared = nn.Embedding(config.doc_type_size, embed_dim, 0)
         self.encoder = LongformerBartEncoderWithDocType(config, self.shared, self.doc_type_shared)
         self.decoder = CustomBartDecoder(config, self.shared)
 
@@ -426,7 +426,7 @@ class LongformerBartModel(BartModel):
         attention_mask=None,
         decoder_input_ids=None,
         decoder_attention_mask=None,
-        encoder_doc_type_ids=None,
+        doc_type_ids=None,
         head_mask=None,
         decoder_head_mask=None,
         cross_attn_head_mask=None,
@@ -458,7 +458,7 @@ class LongformerBartModel(BartModel):
             encoder_outputs = self.encoder(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
-                doc_type_ids=encoder_doc_type_ids,
+                doc_type_ids=doc_type_ids,
                 head_mask=head_mask,
                 inputs_embeds=inputs_embeds,
                 output_attentions=output_attentions,
@@ -476,8 +476,8 @@ class LongformerBartModel(BartModel):
 
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
         decoder_outputs = self.decoder(
-            input_ids=decoder_input_ids,                    # ?
-            attention_mask=decoder_attention_mask,          # ?
+            input_ids=decoder_input_ids,                    
+            attention_mask=decoder_attention_mask,          
             encoder_hidden_states=encoder_outputs[0],
             encoder_attention_mask=attention_mask,
             head_mask=decoder_head_mask,
@@ -516,7 +516,7 @@ class LongformerBartWithDoctypeForConditionalGeneration(BartForConditionalGenera
         attention_mask=None,
         decoder_input_ids=None,
         decoder_attention_mask=None,
-        encoder_doc_type_ids=None,
+        doc_type_ids=None,
         head_mask=None,
         decoder_head_mask=None,
         cross_attn_head_mask=None,
@@ -551,7 +551,7 @@ class LongformerBartWithDoctypeForConditionalGeneration(BartForConditionalGenera
             input_ids,
             attention_mask=attention_mask,
             decoder_input_ids=decoder_input_ids,
-            encoder_doc_type_ids=encoder_doc_type_ids,
+            doc_type_ids=doc_type_ids,
             encoder_outputs=encoder_outputs,
             decoder_attention_mask=decoder_attention_mask,
             head_mask=head_mask,
@@ -591,7 +591,7 @@ class LongformerBartWithDoctypeForConditionalGeneration(BartForConditionalGenera
     def prepare_inputs_for_generation(
         self,
         decoder_input_ids,
-        encoder_doc_type_ids=None,
+        doc_type_ids=None,
         past=None,
         attention_mask=None,
         decoder_attention_mask=None,
@@ -614,7 +614,7 @@ class LongformerBartWithDoctypeForConditionalGeneration(BartForConditionalGenera
         return {
             "input_ids": None,      # encoder_outputs is defined. input_ids not needed
             "encoder_outputs": encoder_outputs,
-            "encoder_doc_type_ids":encoder_doc_type_ids, 
+            "doc_type_ids":doc_type_ids, 
             "past_key_values": past,
             "decoder_input_ids": decoder_input_ids,
             "attention_mask": attention_mask,
