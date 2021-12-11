@@ -7,6 +7,22 @@ python train.py \
 --do_train \
 --output_dir model/baseV1.0_Kobart \
 --dataset_name paper,news,magazine \
+--num_train_epochs 2 \
+--learning_rate 3e-05 \
+--max_source_length 1024 \
+--max_target_length 128 \
+--metric_for_best_model rougeLsum \
+--relative_eval_steps 10 \
+--es_patience 3 \
+--load_best_model_at_end True \
+--relative_sample_ratio 0.5 \
+--project_name baseV1.0_Kobart \
+--wandb_unique_tag kobartV1_ep2_lr3e05_len1024_R50_Doctype_EOS
+
+python train.py \
+--do_train \
+--output_dir model/baseV1.0_Kobart \
+--dataset_name paper,news,magazine \
 --num_train_epochs 3 \
 --learning_rate 3e-05 \
 --max_source_length 1024 \
@@ -17,7 +33,7 @@ python train.py \
 --load_best_model_at_end True \
 --relative_sample_ratio 0.5 \
 --project_name baseV1.0_Kobart \
---wandb_unique_tag kobartV1_ep2_lr3e05_len1024_R50
+--wandb_unique_tag kobartV1_ep2_lr3e05_len1024_R50_Doctype_EOS
 
 ## Eval
 # ## 시도해볼 부분: num_beams

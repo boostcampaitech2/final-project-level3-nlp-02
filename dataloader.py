@@ -34,10 +34,10 @@ class SumDataset(Dataset) :
             typed_ds = ds[self.mode]
             sampling_count = round(len(typed_ds)*self.ratio)
             
-            if self.mode == 'test' :
-                typed_ds = typed_ds.map(self.data_preprocessor.for_test)
-            else :
-                typed_ds = typed_ds.map(self.data_preprocessor.for_train)
+            # if self.mode == 'test' :
+            #     typed_ds = typed_ds.map(self.data_preprocessor.for_test)
+            # else :
+            #     typed_ds = typed_ds.map(self.data_preprocessor.for_train)
 
             sampled_data_ds = typed_ds.shuffle(self.shuffle_seed).select(range(sampling_count))
             dataset_list.append(sampled_data_ds)

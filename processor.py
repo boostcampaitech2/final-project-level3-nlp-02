@@ -8,10 +8,11 @@ doc_type_dict = {
 
 def preprocess_function(examples, tokenizer, data_args):
     prefix = tokenizer.bos_token
+    eos_token_id = tokenizer.eos_token_id
     pad_token_id = tokenizer.pad_token_id
     max_source_length = data_args.max_source_length
     max_target_length = data_args.max_target_length
-    padding = "max_length"
+    padding = False
 
     inputs = examples['text']
     titles = examples['title']
@@ -19,10 +20,14 @@ def preprocess_function(examples, tokenizer, data_args):
 
     inputs = [prefix + inp for inp in inputs]
 
-    model_inputs = tokenizer(inputs, max_length=max_source_length, padding=padding, truncation=True)
+    model_inputs = tokenizer(inputs, max_length=max_source_length-1, padding=padding, truncation=True)
     
     doc_type_ids = []
     for i in range(len(model_inputs['input_ids'])) :
+        model_inputs["attention_mask"][i] = model_inputs["attention_mask"][i]+[1]
+        model_inputs["input_ids"][i] = model_inputs["input_ids"][i]+[eos_token_id]
+        model_inputs["token_type_ids"][i] = model_inputs["token_type_ids"][i]+[0]
+
         doc_type_id = doc_type_dict[doc_types[i]]
         attn_mask = np.array(model_inputs['attention_mask'][i])
         doc_type_id_list = list(np.where(attn_mask == 1, doc_type_id, 0))
