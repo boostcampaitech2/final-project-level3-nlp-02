@@ -6,3 +6,5 @@ evaluation/**
 
 *.env
 *.ipynb
+
+modeling_bart.py
