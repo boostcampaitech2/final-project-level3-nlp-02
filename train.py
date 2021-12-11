@@ -32,6 +32,7 @@ from dataloader import SumDataset
 from processor import preprocess_function
 from rouge import compute_metrics
 from preprocessor import Filter
+from data_collator import DataCollatorForSeq2SeqWithDocType
 
 def seed_everything(seed):
     torch.manual_seed(seed)
@@ -101,9 +102,9 @@ def main():
         training_args.eval_steps = int(iterations // data_args.relative_eval_steps)
         training_args.save_steps = training_args.eval_steps ## save step은 eval step의 배수여야 함
 
-    data_filter = Filter(min_size=5, max_size=80)
-    train_dataset = train_dataset.filter(data_filter)
-    valid_dataset = valid_dataset.filter(data_filter)
+    # data_filter = Filter(min_size=5, max_size=80)
+    # train_dataset = train_dataset.filter(data_filter)
+    # valid_dataset = valid_dataset.filter(data_filter)
 
     print(f"train_dataset length: {len(train_dataset)}")
     print(f"valid_dataset length: {len(valid_dataset)}")
@@ -149,7 +150,7 @@ def main():
     )
 
     label_pad_token_id = -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
-    data_collator = DataCollatorForSeq2Seq(
+    data_collator = DataCollatorForSeq2SeqWithDocType(
         tokenizer,
         padding=True,
         label_pad_token_id=label_pad_token_id,
