@@ -468,7 +468,6 @@ class BigBirdModelWithDoctype(BigBirdPreTrainedModel):
                 attention_mask, (0, padding_len), value=False
             )  # no attention on the padding tokens
             token_type_ids = nn.functional.pad(token_type_ids, (0, padding_len), value=0)  # pad with token_type_id = 0
-            breakpoint()
             doc_type_ids = nn.functional.pad(doc_type_ids, (0, padding_len), value=0) 
 
         return padding_len, input_ids, attention_mask, token_type_ids, doc_type_ids, position_ids, inputs_embeds
@@ -1038,6 +1037,7 @@ class EncoderDecoderModel(PreTrainedModel):
         attention_mask=None,
         decoder_input_ids=None,
         decoder_attention_mask=None,
+        doc_type_ids=None,
         encoder_outputs=None,
         past_key_values=None,
         inputs_embeds=None,
@@ -1083,6 +1083,7 @@ class EncoderDecoderModel(PreTrainedModel):
                 input_ids=input_ids,
                 attention_mask=attention_mask,
                 inputs_embeds=inputs_embeds,
+                doc_type_ids=doc_type_ids,
                 output_attentions=output_attentions,
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
