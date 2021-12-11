@@ -13,7 +13,7 @@ from transformers import AutoModelForSeq2SeqLM
 from transformers import DataCollatorForSeq2Seq
 from transformers import Seq2SeqTrainingArguments
 from transformers import Seq2SeqTrainer
-from knowledge_distillation import DistillationTrainingArguments, DistillationTrainer
+from knowledge_distillation import DistillationTrainingArguments, DistillationTrainer, TinyTrainer
 from huggingface_hub import notebook_login
 from dotenv import load_dotenv
 load_dotenv(verbose=True)
@@ -36,20 +36,24 @@ seed = 42
 
 train_size = 5000
 eval_size = 500
-check_point = 'encoder_decoder_pruned_last_5-finetuned-5000/checkpoint-12500'#"gogamza/kobart-summarization"
+# check_point = 'encoder_decoder_pruned_last_3'#"gogamza/kobart-summarization"
+check_point = 'checkpoint-7500-finetuned-5000/checkpoint-8000'
 max_input_length = 512
 max_target_length = 30
 
 batch_size = 8
-num_train_epochs = 10
+num_train_epochs = 25
 learning_rate=5.6e-5
 weight_decay = 0.01
-logging_steps = 500
+logging_steps = 50
 model_name = check_point.split("/")[-1]
 
-is_distillation = True
-if is_distillation:
-    student_check_point = 'encoder_decoder_pruned_last_3-finetuned-5000/checkpoint-6000' #"encoder_decoder_pruned_last_5"
+
+
+distillation_type = 'tiny'
+if distillation_type:
+    student_check_point = 'encoder_decoder_pruned_last_3'
+    # student_check_point = 'checkpoint-7500-finetuned-5000/checkpoint-8000'
     teacher_check_point = "kobart-summarization-finetuned-5000/checkpoint-1000"
     alpha=0
     temperature = 1
@@ -75,7 +79,7 @@ training_dataset = dataset['train'].shuffle(seed=seed).select(range(train_size))
 # In[31]:
 
 
-if is_distillation:
+if distillation_type:
     tokenizer = AutoTokenizer.from_pretrained(student_check_point)
 else:
     tokenizer = AutoTokenizer.from_pretrained(check_point)
@@ -117,7 +121,7 @@ tokenized_eval_dataset = dataset['validation'].select(range(500)).map(preprocess
 # In[35]:
 
 
-if is_distillation:
+if distillation_type:
     student_model = AutoModelForSeq2SeqLM.from_pretrained(student_check_point).to(device)
     teacher_model = AutoModelForSeq2SeqLM.from_pretrained(teacher_check_point).to(device)
 else:
@@ -127,7 +131,7 @@ else:
 # In[36]:
 
 
-if is_distillation:
+if distillation_type:
     args =  DistillationTrainingArguments(
         output_dir=f'{student_check_point}-distilled-{train_size}',
         evaluation_strategy = 'steps',
@@ -188,7 +192,7 @@ def compute_metrics(eval_pred):
 # In[38]:
 
 
-if is_distillation:
+if distillation_type:
     data_collator = DataCollatorForSeq2Seq(tokenizer, model=student_model)
 else:
     data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
@@ -197,7 +201,7 @@ else:
 # In[39]:
 
 
-if is_distillation:
+if distillation_type == 'distil':
     trainer = DistillationTrainer(
         model=student_model,
         args=args,
@@ -206,7 +210,18 @@ if is_distillation:
         eval_dataset=tokenized_eval_dataset,
         data_collator=data_collator,
         tokenizer=tokenizer,
-        # compute_metrics=compute_metrics,
+        compute_metrics=compute_metrics,
+    )
+elif distillation_type == 'tiny':
+    trainer = TinyTrainer(
+        model=student_model,
+        args=args,
+        teacher_model = teacher_model,
+        train_dataset=tokenized_train_dataset,
+        eval_dataset=tokenized_eval_dataset,
+        data_collator=data_collator,
+        tokenizer=tokenizer,
+        compute_metrics=compute_metrics,
     )
 else:
     trainer = Seq2SeqTrainer(
