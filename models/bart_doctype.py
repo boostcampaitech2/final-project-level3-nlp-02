@@ -25,7 +25,7 @@ from transformers.models.bart.modeling_bart import (
 )
 
 class BartWithDocTypeConfig(BartConfig) :
-    def __init__(self, doc_type_size=Optional[int], **kwargs) :
+    def __init__(self, doc_type_size:Optional[int]=None, **kwargs) :
         super().__init__(**kwargs)
         self.doc_type_size = doc_type_size
 

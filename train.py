@@ -112,9 +112,10 @@ def main():
 
     config = BartWithDocTypeConfig.from_pretrained(
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,
-        doc_type_size=3+1, # document size + padding 
+        doc_type_size=3+1,
         cache_dir=model_args.cache_dir,
     )
+
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
