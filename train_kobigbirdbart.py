@@ -14,10 +14,11 @@ from transformers import (
     AutoConfig,
     AutoModelForSeq2SeqLM,
     HfArgumentParser,
-    DataCollatorForSeq2Seq,
     Seq2SeqTrainer,
     EarlyStoppingCallback
 )
+
+from data_collator import DataCollatorForSeq2SeqWithDocType
 
 from args import (
     DataTrainingArguments,
@@ -112,8 +113,9 @@ def main():
         config_e = BigBirdConfigWithDoctype.from_pretrained("monologg/kobigbird-bert-base")
         config_d = BartConfigWithDoctype.from_pretrained("gogamza/kobart-base-v1")
         
-        config_e.doc_type_size = 3
-        config_d.doc_type_size = 3
+        if data_args.use_doc_type_ids :
+            config_e.doc_type_size = 3
+            config_d.doc_type_size = 3
         config_d.pad_token_id = 0
         config_d.max_position_embeddings = 128
     
@@ -155,7 +157,7 @@ def main():
         load_from_cache_file=False,
         desc="Running tokenizer on train dataset",
     )
-
+    
     valid_dataset = valid_dataset.map(
         prep_fn,
         batched=True,
@@ -166,7 +168,7 @@ def main():
     )
     
     label_pad_token_id = -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
-    data_collator = DataCollatorForSeq2Seq(
+    data_collator = DataCollatorForSeq2SeqWithDocType(
         tokenizer,
         label_pad_token_id=label_pad_token_id,
         pad_to_multiple_of=8 if training_args.fp16 else None,

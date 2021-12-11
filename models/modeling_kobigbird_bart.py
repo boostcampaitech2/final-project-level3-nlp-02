@@ -5,9 +5,9 @@ import random
 import torch.nn.functional as F
 import warnings
 
-
-from transformers import AutoModel, AutoConfig, BigBirdConfig, BigBirdPreTrainedModel, AutoTokenizer
+from transformers import AutoModel, AutoConfig, BigBirdConfig, BigBirdPreTrainedModel, AutoTokenizer, AutoModelForCausalLM
 from packaging import version
+from transformers.models.auto.modeling_auto import AutoModelForSeq2SeqLM
 
 from transformers.utils import logging
 from typing import Optional, Tuple, List
@@ -34,6 +34,49 @@ logger = logging.get_logger(__name__)
 
 logger = logging.get_logger(__name__)
 # from transformers.models.big_bird.configuration_big_bird import BigBirdConfig
+
+def shift_tokens_right(input_ids: torch.Tensor, pad_token_id: int, decoder_start_token_id: int):
+    """
+    Shift input ids one token to the right.
+    """
+    shifted_input_ids = input_ids.new_zeros(input_ids.shape)
+    shifted_input_ids[:, 1:] = input_ids[:, :-1].clone()
+    shifted_input_ids[:, 0] = decoder_start_token_id
+
+    if pad_token_id is None:
+        raise ValueError("self.model.config.pad_token_id has to be defined.")
+    # replace possible -100 values in labels by `pad_token_id`
+    shifted_input_ids.masked_fill_(shifted_input_ids == -100, pad_token_id)
+
+    return shifted_input_ids
+
+def _make_causal_mask(input_ids_shape: torch.Size, dtype: torch.dtype, past_key_values_length: int = 0):
+    """
+    Make causal mask used for bi-directional self-attention.
+    """
+    bsz, tgt_len = input_ids_shape
+    mask = torch.full((tgt_len, tgt_len), float("-inf"))
+    mask_cond = torch.arange(mask.size(-1))
+    mask.masked_fill_(mask_cond < (mask_cond + 1).view(mask.size(-1), 1), 0)
+    mask = mask.to(dtype)
+
+    if past_key_values_length > 0:
+        mask = torch.cat([torch.zeros(tgt_len, past_key_values_length, dtype=dtype), mask], dim=-1)
+    return mask[None, None, :, :].expand(bsz, 1, tgt_len, tgt_len + past_key_values_length)
+
+
+def _expand_mask(mask: torch.Tensor, dtype: torch.dtype, tgt_len: Optional[int] = None):
+    """
+    Expands attention_mask from `[bsz, seq_len]` to `[bsz, 1, tgt_seq_len, src_seq_len]`.
+    """
+    bsz, src_len = mask.size()
+    tgt_len = tgt_len if tgt_len is not None else src_len
+
+    expanded_mask = mask[:, None, None, :].expand(bsz, 1, tgt_len, src_len).to(dtype)
+
+    inverted_mask = 1.0 - expanded_mask
+
+    return inverted_mask.masked_fill(inverted_mask.bool(), torch.finfo(dtype).min)
 
 class BigBirdConfigWithDoctype(BigBirdConfig):
     def __init__(self, doc_type_size: int=None, **kwargs):
@@ -62,9 +105,6 @@ class BigBirdEmbeddingsWithDoctype(BigBirdEmbeddings):
         self.position_embedding_type = getattr(config, "position_embedding_type", "absolute")
         self.register_buffer("position_ids", torch.arange(config.max_position_embeddings).expand((1, -1)))
 
-        # if isinstance(config.doc_type_size, int):
-        #     self.register_buffer("doc_type_ids", torch.zeros(self.position_ids.size(), dtype=torch.long), persistent=False)
-
         if version.parse(torch.__version__) > version.parse("1.6.0"):
             self.register_buffer(
                 "token_type_ids",
@@ -88,9 +128,6 @@ class BigBirdEmbeddingsWithDoctype(BigBirdEmbeddings):
 
         if position_ids is None:
             position_ids = self.position_ids[:, past_key_values_length : seq_length + past_key_values_length]
-        
-        if doc_type_ids is None:
-            doc_type_ids = self.doc_type_ids[:, past_key_values_length : seq_length + past_key_values_length]
 
         # Setting the token_type_ids to the registered buffer in constructor where it is all zeros, which usually occurs
         # when its auto-generated, registered buffer helps users when tracing the model without passing token_type_ids, solves
@@ -803,12 +840,12 @@ class EncoderDecoderModel(PreTrainedModel):
         super().__init__(config)
 
         if encoder is None:
-            from ..auto.modeling_auto import AutoModel
+            from transformers.models.auto.modeling_auto import AutoModel
 
             encoder = AutoModel.from_config(config.encoder)
 
         if decoder is None:
-            from ..auto.modeling_auto import AutoModelForCausalLM
+            from transformers.models.auto.modeling_auto import AutoModelForCausalLM
 
             decoder = AutoModelForCausalLM.from_config(config.decoder)
 
@@ -1024,7 +1061,7 @@ class EncoderDecoderModel(PreTrainedModel):
                     "`decoder_config` to `.from_encoder_decoder_pretrained(...)`"
                 )
 
-            decoder = AutoModelForCausalLM.from_pretrained(decoder_pretrained_model_name_or_path, **kwargs_decoder)
+            decoder = AutoModelForSeq2SeqLM.from_pretrained(decoder_pretrained_model_name_or_path, **kwargs_decoder)
 
         # instantiate config with corresponding kwargs
         config = EncoderDecoderConfig.from_encoder_decoder_configs(encoder.config, decoder.config, **kwargs)
@@ -1124,7 +1161,7 @@ class EncoderDecoderModel(PreTrainedModel):
         ################## 추가부분(BartForConditionalGeneration class 참조했습니다.)
         lm_logits = self.lm_head(decoder_outputs[0]) + self.final_logits_bias
 
-        masked_lm_loss = None
+        loss = None
         if labels is not None:
             loss_fct = CrossEntropyLoss()
             # decoder의 d_model(vocab_size)가 encoder vocab_size로 대체(이유는 encoder word_embedding이 decoder word_embedding으로 대체)
@@ -1159,19 +1196,34 @@ class EncoderDecoderModel(PreTrainedModel):
         return shift_tokens_right(labels, self.config.pad_token_id, self.config.decoder_start_token_id)
 
     def prepare_inputs_for_generation(
-        self, input_ids, past=None, attention_mask=None, use_cache=None, encoder_outputs=None, **kwargs
+        self,
+        decoder_input_ids,
+        doc_type_ids=None,
+        past=None,
+        attention_mask=None,
+        head_mask=None,
+        decoder_head_mask=None,
+        cross_attn_head_mask=None,
+        use_cache=None,
+        encoder_outputs=None,
+        **kwargs
     ):
-        decoder_inputs = self.decoder.prepare_inputs_for_generation(input_ids, past=past)
-        decoder_attention_mask = decoder_inputs["attention_mask"] if "attention_mask" in decoder_inputs else None
-        input_dict = {
-            "attention_mask": attention_mask,
-            "decoder_attention_mask": decoder_attention_mask,
-            "decoder_input_ids": decoder_inputs["input_ids"],
+        # cut decoder_input_ids if past is used
+        if past is not None:
+            decoder_input_ids = decoder_input_ids[:, -1:]
+
+        return {
+            "input_ids": None,  # encoder_outputs is defined. input_ids not needed
             "encoder_outputs": encoder_outputs,
-            "past_key_values": decoder_inputs["past_key_values"],
-            "use_cache": use_cache,
+            "past_key_values": past,
+            "doc_type_ids":doc_type_ids, 
+            "decoder_input_ids": decoder_input_ids,
+            "attention_mask": attention_mask,
+            "head_mask": head_mask,
+            "decoder_head_mask": decoder_head_mask,
+            "cross_attn_head_mask": cross_attn_head_mask,
+            "use_cache": use_cache,  # change this to avoid caching (presumably for debugging)
         }
-        return input_dict
 
     def resize_token_embeddings(self, *args, **kwargs):
         raise NotImplementedError(
@@ -1182,4 +1234,23 @@ class EncoderDecoderModel(PreTrainedModel):
     def _reorder_cache(self, past, beam_idx):
         # apply decoder cache reordering here
         return self.decoder._reorder_cache(past, beam_idx)
+
+if __name__ == "__main__" :
+    config_e = BigBirdConfigWithDoctype.from_pretrained("monologg/kobigbird-bert-base")
+    config_d = BartConfigWithDoctype.from_pretrained("gogamza/kobart-base-v1")
+    
+    config_e.doc_type_size = 3
+    config_d.doc_type_size = 3
+    config_d.pad_token_id = 0
+    config_d.max_position_embeddings = 128
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        "monologg/kobigbird-bert-base",
+        use_fast=True
+    )
+
+    encoder = BigBirdModelWithDoctype.from_pretrained("monologg/kobigbird-bert-base",config=config_e)
+    decoder = BartDecoderWithDoctype.from_pretrained("gogamza/kobart-base-v1", config=config_d)
+    decoder.embed_tokens = encoder.embeddings.word_embeddings
+    total_model = EncoderDecoderModel(encoder = encoder, decoder = decoder)
 

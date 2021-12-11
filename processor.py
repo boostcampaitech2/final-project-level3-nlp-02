@@ -30,14 +30,16 @@ def preprocess_function(examples, tokenizer, data_args):
         labels["input_ids"] = [
             [(l if l != tokenizer.pad_token_id else -100) for l in label] for label in labels["input_ids"]
         ]
-    
-    model_inputs = doc_type_marking(model_inputs, doc_type_id, pad_id)
+
+    if data_args.use_doc_type_ids:
+        model_inputs = doc_type_marking(model_inputs, doc_type_id, pad_id)
 
     model_inputs["labels"] = labels["input_ids"]
     return model_inputs
 
 def doc_type_marking(tokenizer_tmp_input, doc_type_id, pad_id):
     doc_type_input_ids=[]
+    
     for i, input_ids_per_one_input in enumerate(tokenizer_tmp_input['input_ids']):
         if pad_id not in input_ids_per_one_input:
             marking = [doc_type_id[i]]*len(input_ids_per_one_input)
@@ -47,4 +49,5 @@ def doc_type_marking(tokenizer_tmp_input, doc_type_id, pad_id):
             tmp = [0] * len(input_ids_per_one_input[list(input_ids_per_one_input).index(0):])
             doc_type_input_ids.append(marking+tmp)
     tokenizer_tmp_input['doc_type_ids'] = doc_type_input_ids
+
     return tokenizer_tmp_input

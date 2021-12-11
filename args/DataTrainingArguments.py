@@ -107,3 +107,9 @@ class DataTrainingArguments:
             "help": "Calculate the evaluation step relative to the size of the data set."
         },
     )
+    use_doc_type_ids: bool = field(
+        default=False,
+        metadata={  
+            "help": "Calculate the evaluation step relative to the size of the data set."
+        },
+    )
