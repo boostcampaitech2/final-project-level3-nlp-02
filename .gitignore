@@ -7,5 +7,6 @@ Tokenizer/*.txt
 __pycache__
 data/**
 wandb/**
+model/*
 
 Dataloader.ipynb

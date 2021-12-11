@@ -11,8 +11,8 @@ python train.py \
 --dataset_name paper,news,magazine \
 --num_train_epochs 2 \
 --learning_rate 3e-05 \
---max_source_length 1024 \
---max_target_length 128 \
+--max_source_length 4000 \
+--max_target_length 200 \
 --attention_window_size 128 \
 --metric_for_best_model rougeLsum \
 --relative_eval_steps 10 \

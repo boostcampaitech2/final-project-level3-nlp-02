@@ -33,8 +33,9 @@ from rouge import compute_metrics
 
 from trainer import Seq2SeqTrainerWithDocType
 
-from model.modeling_longformerbart import LongformerBartConfig, LongformerBartWithDoctypeForConditionalGeneration
-from transformers.models.bart.modeling_bart import BartLearnedPositionalEmbedding
+from models.modeling_longformerbart import LongformerBartConfig, LongformerBartWithDoctypeForConditionalGeneration
+from models.rebuilding_longformerbart import make_model_for_changing_postion_embedding
+from data_collator import DataCollatorForSeq2SeqWithDocType
 
 def seed_everything(seed):
     torch.manual_seed(seed)
@@ -45,46 +46,6 @@ def seed_everything(seed):
     np.random.seed(seed)
     random.seed(seed)
     
-def make_model_for_changing_postion_embedding(config,data_args,model_args):
-    tmp_config = config
-    tmp_config.max_target_positions = 1026
-    tmp_config.max_position_embeddings = 1026
-    model = LongformerBartWithDoctypeForConditionalGeneration.from_pretrained(model_args.model_name_or_path, config=tmp_config)
-    sd = model.state_dict()
-    origin_enc_pos_embeds = sd['model.encoder.embed_positions.weight']
-    origin_dec_pos_embeds = sd['model.decoder.embed_positions.weight']
-    new_config = model.config
-    new_config.max_position_embeddings = data_args.max_source_length
-    new_config.max_target_positions = data_args.max_target_length
-    new_config.attention_window_size = model_args.attention_window_size
-    
-    new_model = LongformerBartWithDoctypeForConditionalGeneration(config=new_config)
-    correctly_shaped_enc_pos_weight = new_model.model.encoder.embed_positions.weight.detach()
-    if new_config.max_position_embeddings+2 > origin_dec_pos_embeds.shape[0]:
-        correctly_shaped_enc_pos_weight[:origin_enc_pos_embeds.shape[0]] = origin_enc_pos_embeds
-    else:
-        correctly_shaped_enc_pos_weight[:new_config.max_position_embeddings+2] = origin_dec_pos_embeds[:new_config.max_position_embeddings+2]
-        correctly_shaped_enc_pos_weight = correctly_shaped_enc_pos_weight[:new_config.max_position_embeddings+2]
-    correctly_shaped_enc_pos_weight = nn.Parameter(correctly_shaped_enc_pos_weight)
-    sd['model.encoder.embed_positions.weight'] = correctly_shaped_enc_pos_weight
-
-    correctly_shaped_dec_pos_weight = new_model.model.decoder.embed_positions.weight.detach()
-    if new_config.max_target_positions+2 > origin_dec_pos_embeds.shape[0]:
-        correctly_shaped_dec_pos_weight[:origin_dec_pos_embeds.shape[0]] = origin_dec_pos_embeds
-    else:
-        correctly_shaped_dec_pos_weight[:new_config.max_target_positions+2] = origin_dec_pos_embeds[:new_config.max_target_positions+2]
-        correctly_shaped_dec_pos_weight = correctly_shaped_dec_pos_weight[:new_config.max_target_positions+2]
-    correctly_shaped_dec_pos_weight = nn.Parameter(correctly_shaped_dec_pos_weight)
-    sd['model.decoder.embed_positions.weight'] = correctly_shaped_dec_pos_weight
-
-    new_model.model.encoder.embed_positions = BartLearnedPositionalEmbedding(new_config.max_position_embeddings, new_config.d_model)
-    new_model.model.decoder.embed_positions = BartLearnedPositionalEmbedding(new_config.max_target_positions, new_config.d_model)
-    new_model.load_state_dict(sd, strict=True)
-    new_model_path = f"{model_args.longformerbart_path}_{new_config.max_position_embeddings}_{new_config.max_target_positions}"
-    new_model.save_pretrained(new_model_path)
-    print(f"save LongformerBart Model {new_model_path}")
- 
-
 def main():
     ## Arguments setting
     parser = HfArgumentParser(
@@ -155,7 +116,7 @@ def main():
     
     if not os.path.exists(training_args.model_path):
         make_model_for_changing_postion_embedding(config,data_args,model_args)
-    
+
     config.max_position_embeddings = data_args.max_source_length+2
     config.max_target_positions = data_args.max_target_length+2
     config.attention_window_size = model_args.attention_window_size
@@ -211,7 +172,7 @@ def main():
     
     comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
     
-    trainer = Seq2SeqTrainerWithDocType(
+    trainer = DataCollatorForSeq2SeqWithDocType(
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=valid_dataset,

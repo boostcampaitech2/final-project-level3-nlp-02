@@ -39,7 +39,7 @@ class ModelArguments :
         },
     )
     longformerbart_path: str = field(
-        default='./models/longformerbart',
+        default='./model/longformerbart',
         metadata={
             "help": "path for loading longformerbart model"
         },
