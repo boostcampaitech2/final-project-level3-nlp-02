@@ -3,11 +3,3 @@ args/__pycache__
 wandb/**
 model/**
 evaluation/**
-
-Data
-EDA
-__pycache__
-
-wandb/*
-model/
-Dataloader.ipynb
