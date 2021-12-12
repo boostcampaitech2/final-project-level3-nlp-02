@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import torch
 import torch.nn as nn
 import random
@@ -505,7 +504,8 @@ class BigBirdModelWithDoctype(BigBirdPreTrainedModel):
                 attention_mask, (0, padding_len), value=False
             )  # no attention on the padding tokens
             token_type_ids = nn.functional.pad(token_type_ids, (0, padding_len), value=0)  # pad with token_type_id = 0
-            doc_type_ids = nn.functional.pad(doc_type_ids, (0, padding_len), value=0) 
+            if doc_type_ids is not None:
+                doc_type_ids = nn.functional.pad(doc_type_ids, (0, padding_len), value=0) 
 
         return padding_len, input_ids, attention_mask, token_type_ids, doc_type_ids, position_ids, inputs_embeds
 
@@ -1234,23 +1234,3 @@ class EncoderDecoderModel(PreTrainedModel):
     def _reorder_cache(self, past, beam_idx):
         # apply decoder cache reordering here
         return self.decoder._reorder_cache(past, beam_idx)
-
-if __name__ == "__main__" :
-    config_e = BigBirdConfigWithDoctype.from_pretrained("monologg/kobigbird-bert-base")
-    config_d = BartConfigWithDoctype.from_pretrained("gogamza/kobart-base-v1")
-    
-    config_e.doc_type_size = 3
-    config_d.doc_type_size = 3
-    config_d.pad_token_id = 0
-    config_d.max_position_embeddings = 128
-
-    tokenizer = AutoTokenizer.from_pretrained(
-        "monologg/kobigbird-bert-base",
-        use_fast=True
-    )
-
-    encoder = BigBirdModelWithDoctype.from_pretrained("monologg/kobigbird-bert-base",config=config_e)
-    decoder = BartDecoderWithDoctype.from_pretrained("gogamza/kobart-base-v1", config=config_d)
-    decoder.embed_tokens = encoder.embeddings.word_embeddings
-    total_model = EncoderDecoderModel(encoder = encoder, decoder = decoder)
-
