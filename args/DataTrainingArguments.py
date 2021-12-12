@@ -107,3 +107,9 @@ class DataTrainingArguments:
             "help": "Calculate the evaluation step relative to the size of the data set."
         },
     )
+    is_pretrain : bool = field(
+        default=False,
+        metadata={
+            "help" : "Whether to pretrain model with infilling masking task"
+        }
+    )

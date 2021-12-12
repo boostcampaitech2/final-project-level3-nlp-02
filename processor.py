@@ -28,10 +28,6 @@ def preprocess_function(examples:datasets,
 
     # Setup the tokenizer for inputs
     model_inputs = tokenizer(inputs, max_length=max_source_length-1, padding=padding, truncation=True)
-    
-    # Setup the tokenizer for targets
-    with tokenizer.as_target_tokenizer():
-        labels = tokenizer(titles, max_length=max_target_length-1, padding=padding, truncation=True)
 
     # If we are padding here, replace all tokenizer.pad_token_id in the labels by -100 when we want to ignore
     # padding in the loss.
@@ -57,24 +53,24 @@ def preprocess_function(examples:datasets,
         doc_type_id_list = get_doc_type_ids(model_inputs["attention_mask"][i], doc_type_dict[doc_types[i]])
         doc_type_ids.append(doc_type_id_list)
 
-    title_padding_bool = padding == "max_length" and data_args.ignore_pad_token_for_loss
+    if data_args.is_pretrain:
+        # Setup the tokenizer for targets
+        with tokenizer.as_target_tokenizer():
+            labels = tokenizer(titles, max_length=max_target_length-1, padding=padding, truncation=True)
+        title_padding_bool = padding == "max_length" and data_args.ignore_pad_token_for_loss
+        
+        labels["input_ids"] = [
+                add_padding(
+                    sample_tokens=label,
+                    padding=title_padding_bool,
+                    padding_num=-100,
+                    max_length=max_target_length,
+                    eos_token_id=eos_token_id
+                    ) for label in labels["input_ids"]
+            ]
+        model_inputs["labels"] = labels["input_ids"]
     
-    labels["input_ids"] = [
-            add_padding(
-                sample_tokens=label,
-                padding=title_padding_bool,
-                padding_num=-100,
-                max_length=max_target_length,
-                eos_token_id=eos_token_id
-                ) for label in labels["input_ids"]
-        ]
-    # if padding == "max_length" and data_args.ignore_pad_token_for_loss:
-    #     labels["input_ids"] = [
-    #         [(token_id if token_id != tokenizer.pad_token_id else -100) for token_id in label] for label in labels["input_ids"]
-    #     ]
-
     model_inputs["doc_type_ids"] = doc_type_ids
-    model_inputs["labels"] = labels["input_ids"]
     return model_inputs 
 
 
