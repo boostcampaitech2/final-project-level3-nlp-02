@@ -24,9 +24,6 @@ sys.path.append('/opt/ml/final-project-level3-nlp-02')
 from rouge import compute
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-wandb.init(
-    entity="final_project",
-)
 
 
 # In[28]:
@@ -42,10 +39,10 @@ max_input_length = 512
 max_target_length = 30
 
 batch_size = 8
-num_train_epochs = 25
+num_train_epochs = 50
 learning_rate=5.6e-5
 weight_decay = 0.01
-logging_steps = 50
+logging_steps = 500
 model_name = check_point.split("/")[-1]
 
 
@@ -58,6 +55,11 @@ if distillation_type:
     alpha=0
     temperature = 1
 
+wandb.init(
+    entity="final_project",
+    project='optimization',
+    name=f'{student_check_point}-{distillation_type}-{num_train_epochs}'
+)
 
 # # Loading Dataset
 

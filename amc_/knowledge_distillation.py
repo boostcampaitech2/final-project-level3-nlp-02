@@ -37,7 +37,6 @@ class DistillationTrainer(Seq2SeqTrainer):
 
         loss = self.args.alpha * loss_cross_entropy + (1. - self.args.alpha) * loss_kd
         
-        print('loss:', round(loss.item(), 4), 'loss_ce:', round(loss_cross_entropy.item(), 4), 'loss_kd:', round(loss_kd.item(), 4))
         # Return weighted student loss
         return (loss, outputs_student) if return_outputs else loss
 
@@ -82,7 +81,7 @@ class TinyTrainer(Seq2SeqTrainer):
             encoder_attention_loss += MSELoss(
                 # attentions before softmax should be used(should change later if possible)
                 outputs_student.encoder_attentions[i], 
-                outputs_teacher.encoder_attentions[i*encoder_layer_ratio]
+                outputs_teacher.encoder_attentions[i*encoder_layer_ratio+1]
             )
 
         # Calculate losses in decoder layers
@@ -90,7 +89,7 @@ class TinyTrainer(Seq2SeqTrainer):
             decoder_attention_loss += MSELoss(
                 # attentions before softmax should be used(should change later if possible)
                 outputs_student.decoder_attentions[i],
-                outputs_teacher.decoder_attentions[i*decoder_layer_ratio]
+                outputs_teacher.decoder_attentions[i*decoder_layer_ratio+1]
             )
         
         # Calculate encoder embedding loss
@@ -120,8 +119,18 @@ class TinyTrainer(Seq2SeqTrainer):
             )
 
         # Calculate prediction layer loss
-        prediction_layer_loss = -F.softmax(outputs_teacher.logits, dim=-1) * F.log_softmax(outputs_student.logits, dim=-1)
-        prediction_layer_loss = prediction_layer_loss.mean()
+        # Commented temporalily
+        # prediction_layer_loss = -F.softmax(outputs_teacher.logits, dim=-1) * F.log_softmax(outputs_student.logits, dim=-1)
+        # prediction_layer_loss = prediction_layer_loss.mean()
+
+        # For Experimental purpose
+        loss_fct = nn.KLDivLoss(reduction="batchmean")
+        loss_kd = loss_fct(
+            F.log_softmax(outputs_student.logits, dim=-1),
+            F.softmax(outputs_teacher.logits, dim=-1)
+        )
+        # added for further experiment
+        loss_kd = 1 * outputs_student.loss + (1. - 1) * loss_kd
 
         loss = (encoder_attention_loss +
             decoder_attention_loss +
@@ -129,8 +138,8 @@ class TinyTrainer(Seq2SeqTrainer):
             decoder_embedding_loss +
             encoder_layer_loss +
             decoder_layer_loss +
-            prediction_layer_loss
+            loss_kd
+            # prediction_layer_loss # Commented Temporalily
         )
         
-        print(f'loss:{round(loss.item(), 4)},  prediction_layer_loss:{round(prediction_layer_loss.item(),4)}')
         return (loss, outputs_student) if return_outputs else loss
