@@ -68,10 +68,6 @@ def preprocess_function(examples:datasets,
                 eos_token_id=eos_token_id
                 ) for label in labels["input_ids"]
         ]
-    # if padding == "max_length" and data_args.ignore_pad_token_for_loss:
-    #     labels["input_ids"] = [
-    #         [(token_id if token_id != tokenizer.pad_token_id else -100) for token_id in label] for label in labels["input_ids"]
-    #     ]
 
     model_inputs["doc_type_ids"] = doc_type_ids
     model_inputs["labels"] = labels["input_ids"]
@@ -83,6 +79,7 @@ def get_doc_type_ids(sample_tokens:List[int],
     sample_tokens = np.array(sample_tokens)
     doc_type_id_list = list(np.where(sample_tokens == 1, doc_type_id, 0))
     return doc_type_id_list
+
 
 def add_padding(sample_tokens:List[int],
                 padding:bool,
