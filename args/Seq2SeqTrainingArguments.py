@@ -61,6 +61,8 @@ class CustomSeq2SeqTrainingArguments(Seq2SeqTrainingArguments):
             "help": "patience steps for early stopping"
         },
     )
+
+    # Arguments for distillation
     alpha: float = field(
         default=0.5,
         metadata={
@@ -83,5 +85,11 @@ class CustomSeq2SeqTrainingArguments(Seq2SeqTrainingArguments):
         default=None,
         metadata={
             "help": "which distillation method to use (ex. distil, tiny, None) (defualt: None)"
+        }
+    )
+    teacher_check_point: str = field(
+        default=None,
+        metadata={
+            "help": "which teacher model to use(default: None)"
         }
     )

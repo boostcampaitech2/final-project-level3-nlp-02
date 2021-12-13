@@ -161,8 +161,11 @@ def main():
     
     comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
     if training_args.distillation_type == 'distil':
+        print('DistillationTrainer is used!!!')
+        teacher_model=AutoModelForSeq2SeqLM.from_pretrained(training_args.teacher_check_point)
         trainer = DistillationTrainer(
             args=training_args,
+            teacher_model = teacher_model,
             train_dataset=train_dataset,
             eval_dataset=valid_dataset,
             tokenizer=tokenizer,
@@ -172,8 +175,11 @@ def main():
             callbacks = [EarlyStoppingCallback(early_stopping_patience=training_args.es_patience)] if training_args.es_patience else None
         )
     elif training_args.distillation_type == 'tiny':
-        trainer = DistillationTrainer(
+        print('TinyTrainer is used!!!')
+        teacher_model=AutoModelForSeq2SeqLM.from_pretrained(training_args.teacher_check_point)
+        trainer = TinyTrainer(
             args=training_args,
+            teacher_model = teacher_model,
             train_dataset=train_dataset,
             eval_dataset=valid_dataset,
             tokenizer=tokenizer,
