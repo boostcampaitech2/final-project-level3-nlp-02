@@ -44,11 +44,11 @@ def preprocess_function(examples:datasets,
                                                         padding_num= pad_token_id,
                                                         max_length=max_target_length,
                                                         eos_token_id=eos_token_id) 
-        model_inputs["token_type_ids"][i] = add_padding(sample_tokens=model_inputs["token_type_ids"][i],
-                                                        padding=inputs_padding_bool,
-                                                        padding_num= pad_token_id,
-                                                        max_length=max_target_length,
-                                                        eos_token_id=0) 
+        # model_inputs["token_type_ids"][i] = add_padding(sample_tokens=model_inputs["token_type_ids"][i],
+        #                                                 padding=inputs_padding_bool,
+        #                                                 padding_num= pad_token_id,
+        #                                                 max_length=max_target_length,
+        #                                                 eos_token_id=0) 
         
         doc_type_id_list = get_doc_type_ids(model_inputs["attention_mask"][i], doc_type_dict[doc_types[i]])
         doc_type_ids.append(doc_type_id_list)

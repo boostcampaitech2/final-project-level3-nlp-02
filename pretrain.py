@@ -1,4 +1,3 @@
-
 import os
 import importlib.util
 import random
@@ -8,7 +7,7 @@ from dotenv import load_dotenv
 import numpy as np
 import torch
 import torch.nn as nn
-# import wandb
+import wandb
 
 from functools import partial
 from transformers import (
@@ -29,14 +28,21 @@ from args import (
 )
 
 from dataloader import SumDataset
+from processor import preprocess_function
 from rouge import compute_metrics
 
 from trainer import Seq2SeqTrainerWithDocType
 
-from models.modeling_longformerbart import LongformerBartConfig, LongformerBartWithDoctypeForConditionalGeneration
 from models.rebuilding_longformerbart import make_model_for_changing_postion_embedding
-from infilling.collator import DataCollatorForInfilling
-from infilling.processor import preprocess_function
+from models.modeling_longformerbart import (
+    LongformerBartConfig,
+    BartTokenizerWithDocType,
+    LongformerBartWithDoctypeForConditionalGeneration,
+    )
+from data_collator import (
+    DataCollatorForSeq2SeqWithDocType,
+    DataCollatorForTextInfillingDocType
+    )
 
 def seed_everything(seed):
     torch.manual_seed(seed)
@@ -54,7 +60,6 @@ def main():
     )
     model_args, data_args, log_args, training_args = parser.parse_args_into_dataclasses()
     training_args.model_path = f"{model_args.longformerbart_path}_{data_args.max_source_length}_{data_args.max_target_length}"
-    
     seed_everything(training_args.seed)
     if training_args.do_eval :
         training_args.predict_with_generate = True
@@ -63,38 +68,41 @@ def main():
     print(f"** data is from {data_args.dataset_name}")
     print(f'** max_target_length:', data_args.max_target_length)
 
+
     if os.path.isdir(training_args.output_dir) and training_args.do_train and not training_args.overwrite_output_dir:
         raise ValueError(
             f"Output directory ({training_args.output_dir}) already exists and is not empty. "
             "Use --overwrite_output_dir to overcome."
         )
-    
+
     ## load and process dataset
     types = data_args.dataset_name.split(',')
     data_args.dataset_name = ['metamong1/summarization_' + dt for dt in types]
-    
+
     load_dotenv(dotenv_path=data_args.use_auth_token_path)
     USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")
 
-    # -- Training Dataset
     train_dataset = SumDataset(
         data_args.dataset_name,
         'train',
         shuffle_seed=training_args.seed,
         ratio=data_args.relative_sample_ratio,
-        USE_AUTH_TOKEN=USE_AUTH_TOKEN
+        USE_AUTH_TOKEN=True
     ).load_data()
 
-    valid_dataset = SumDataset(
-        data_args.dataset_name,
-        'validation',
-        shuffle_seed=training_args.seed,
-        ratio=data_args.relative_sample_ratio,
-        USE_AUTH_TOKEN=USE_AUTH_TOKEN
-    ).load_data()
+    # valid_dataset = SumDataset(
+    #     data_args.dataset_name,
+    #     'validation',
+    #     shuffle_seed=training_args.seed,
+    #     ratio=data_args.relative_sample_ratio,
+    #     USE_AUTH_TOKEN=USE_AUTH_TOKEN
+    # ).load_data()
+    
+    train_dataset.cleanup_cache_files()
+    # valid_dataset.cleanup_cache_files()
 
     train_dataset = train_dataset.shuffle(training_args.seed)
-    valid_dataset = valid_dataset.shuffle(training_args.seed)
+    # valid_dataset = valid_dataset.shuffle(training_args.seed)
     print('** Dataset example', train_dataset[0]['title'], train_dataset[0]['title'], sep = '\n')
 
     column_names = train_dataset.column_names
@@ -107,7 +115,7 @@ def main():
         training_args.save_steps = training_args.eval_steps ## save step은 eval step의 배수여야 함
 
     print(f"train_dataset length: {len(train_dataset)}")
-    print(f"valid_dataset length: {len(valid_dataset)}")
+    # print(f"valid_dataset length: {len(valid_dataset)}")
     print(f"eval_steps: {training_args.eval_steps}")
 
     config = LongformerBartConfig.from_pretrained(
@@ -116,11 +124,11 @@ def main():
     if not os.path.exists(training_args.model_path):
         make_model_for_changing_postion_embedding(config,data_args,model_args)
 
-    config.max_position_embeddings = data_args.max_source_length+2
-    config.max_target_positions = data_args.max_target_length+2
+    config.max_position_embeddings = data_args.max_source_length
+    config.max_target_positions = data_args.max_target_length
     config.attention_window_size = model_args.attention_window_size
     
-    tokenizer = AutoTokenizer.from_pretrained(
+    tokenizer = BartTokenizerWithDocType.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast_tokenizer
@@ -142,48 +150,50 @@ def main():
         desc="Running tokenizer on train dataset",
     )
 
-    valid_dataset = valid_dataset.map(
-        prep_fn,
-        batched=True,
-        num_proc=data_args.preprocessing_num_workers,
-        remove_columns=column_names,
-        load_from_cache_file=False,
-        desc="Running tokenizer on validation dataset",
-    )
-
-    label_pad_token_id = -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
-    
-    # Data Collator for Bart Model Pretraining
-    data_collator = DataCollatorForInfilling(
-        tokenizer,
-        poisson=3,
-        label_pad_token_id=label_pad_token_id,
-        pad_to_multiple_of=8 if training_args.fp16 else None,
-        window_size=model_args.attention_window_size
-    )
-
-    # wandb
-    # load_dotenv(dotenv_path=log_args.dotenv_path)
-    # WANDB_AUTH_KEY = os.getenv("WANDB_AUTH_KEY")
-    # wandb.login(key=WANDB_AUTH_KEY)
-
-    # wandb.init(
-    #     entity="final_project",
-    #     project=log_args.project_name,
-    #     name=log_args.wandb_unique_tag
+    # valid_dataset = valid_dataset.map(
+    #     prep_fn,
+    #     batched=True,
+    #     num_proc=data_args.preprocessing_num_workers,
+    #     remove_columns=column_names,
+    #     load_from_cache_file=False,
+    #     desc="Running tokenizer on validation dataset",
     # )
-    # wandb.config.update(training_args)
+    label_pad_token_id = -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
+    if data_args.is_pretrain:
+        data_collator = DataCollatorForTextInfillingDocType(
+        tokenizer,
+        label_pad_token_id=label_pad_token_id,
+        pad_to_multiple_of=model_args.attention_window_size,
+        )
+    else:    
+        data_collator = DataCollatorForSeq2SeqWithDocType(
+            tokenizer,
+            label_pad_token_id=label_pad_token_id,
+            pad_to_multiple_of=model_args.attention_window_size,
+        )
+    
+    # wandb
+    load_dotenv(dotenv_path=log_args.dotenv_path)
+    WANDB_AUTH_KEY = os.getenv("WANDB_AUTH_KEY")
+    wandb.login(key=WANDB_AUTH_KEY)
+
+    wandb.init(
+        entity="final_project",
+        project=log_args.project_name,
+        name=log_args.wandb_unique_tag
+    )
+    wandb.config.update(training_args)
     
     comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
     
     trainer = Seq2SeqTrainerWithDocType(
         args=training_args,
         train_dataset=train_dataset,
-        eval_dataset=valid_dataset,
+        # eval_dataset=valid_dataset,
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
-        model_init=model_init,
+        model_init=model_init, ## model 성능 재현
         callbacks = [EarlyStoppingCallback(early_stopping_patience=training_args.es_patience)] if training_args.es_patience else None
     )
 
@@ -202,21 +212,20 @@ def main():
         trainer.save_metrics("train", metrics)
         trainer.save_state()
 
-    max_length = (training_args.generation_max_length
-        if training_args.generation_max_length is not None
-        else data_args.val_max_target_length)
+    # max_length = (training_args.generation_max_length
+        # if training_args.generation_max_length is not None
+        # else data_args.val_max_target_length)
     results = {}
     
-    num_beams = data_args.num_beams if data_args.num_beams is not None else training_args.generation_num_beams
-    if not training_args.do_train and training_args.do_eval:
+    # num_beams = data_args.num_beams if data_args.num_beams is not None else training_args.generation_num_beams
+    # if not training_args.do_train and training_args.do_eval:
+        # metrics = trainer.evaluate(max_length=max_length, num_beams=num_beams, metric_key_prefix="eval")
+        # print("#########Eval metrics: #########", metrics) 
+        # max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(valid_dataset)
+        # metrics["eval_samples"]=min(max_eval_samples, len(valid_dataset))
 
-        metrics = trainer.evaluate(max_length=max_length, num_beams=num_beams, metric_key_prefix="eval")
-        print("#########Eval metrics: #########", metrics) 
-        max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(valid_dataset)
-        metrics["eval_samples"]=min(max_eval_samples, len(valid_dataset))
-
-        trainer.log_metrics("eval", metrics)
-        trainer.save_metrics("eval", metrics)
+        # trainer.log_metrics("eval", metrics)
+        # trainer.save_metrics("eval", metrics)
 
     return results
     

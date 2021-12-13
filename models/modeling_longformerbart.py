@@ -16,7 +16,9 @@ from transformers.utils import logging
 from transformers.file_utils import ModelOutput
 from transformers.modeling_outputs import Seq2SeqLMOutput
 
+from transformers.models.longformer.modeling_longformer import LongformerSelfAttention, LongformerEmbeddings
 from transformers.models.bart.configuration_bart import BartConfig
+from transformers.models.bart.tokenization_bart import BartTokenizer
 from transformers.models.bart.modeling_bart import (
     BartModel,
     BartDecoder,
@@ -27,9 +29,14 @@ from transformers.models.bart.modeling_bart import (
     shift_tokens_right,
 )
 
-from transformers.models.longformer.modeling_longformer import LongformerSelfAttention, LongformerEmbeddings
-
 logger = logging.get_logger(__name__)
+
+class BartTokenizerWithDocType(BartTokenizer):
+    r"""
+    Construct a customized BART tokenizer.
+    add doc_type_ids in model_input_names
+    """
+    model_input_names = ["input_ids", "attention_mask","doc_type_ids"]
 
 class LongformerBartConfig(BartConfig):
     pad_token_id_idx = 4 # pad token id in Bart Tokenizer
