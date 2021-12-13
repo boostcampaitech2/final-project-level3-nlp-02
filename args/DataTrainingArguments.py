@@ -6,10 +6,10 @@ class DataTrainingArguments:
     """
     Arguments pertaining to what data we are going to input our model for training and eval.
     """
-    dataset_name: Optional[str] = field(
-        default="paper,news",
-        metadata={"help": "The name of the dataset to use."},
-    )
+    # dataset_name: Optional[str] = field(
+    #     default="paper,news",
+    #     metadata={"help": "The name of the dataset to use."},
+    # )
     text_column: Optional[str] = field(
         default='text',
         metadata={"help": "The name of the column in the datasets containing the full texts (for summarization)."},
@@ -95,10 +95,10 @@ class DataTrainingArguments:
         default='./use_auth_token.env',
         metadata={"help":'input your use_auth_token path'},
     )
-    relative_sample_ratio: float = field(
-        default=1.0,
+    num_samples: int = field(
+        default=None,
         metadata={  
-            "help": "Set the ratio to the data sampling"
+            "help": "Set number of data sampling"
         },
     )
     relative_eval_steps: int = field(
@@ -112,4 +112,10 @@ class DataTrainingArguments:
         metadata={
             "help" : "Whether to pretrain model with infilling masking task"
         }
+    )
+    is_part: bool = field(
+        default=False,
+        metadata={  
+            "help": "whether to ba a part of datasets (default=False)"
+        },
     )

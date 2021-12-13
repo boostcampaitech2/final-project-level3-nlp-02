@@ -18,7 +18,6 @@ from transformers.modeling_outputs import Seq2SeqLMOutput
 
 from transformers.models.longformer.modeling_longformer import LongformerSelfAttention, LongformerEmbeddings
 from transformers.models.bart.configuration_bart import BartConfig
-from transformers.models.bart.tokenization_bart import BartTokenizer
 from transformers.models.bart.modeling_bart import (
     BartModel,
     BartDecoder,
@@ -28,16 +27,6 @@ from transformers.models.bart.modeling_bart import (
     BartLearnedPositionalEmbedding,
     shift_tokens_right,
 )
-
-logger = logging.get_logger(__name__)
-
-class BartTokenizerWithDocType(BartTokenizer):
-    r"""
-    Construct a customized BART tokenizer.
-    add doc_type_ids in model_input_names
-    """
-    model_input_names = ["input_ids", "attention_mask","doc_type_ids"]
-
 class LongformerBartConfig(BartConfig):
     pad_token_id_idx = 4 # pad token id in Bart Tokenizer
     def __init__(self,
@@ -249,8 +238,8 @@ class LongformerBartEncoderWithDocType(BartPretrainedModel):
     def get_is_index_global_attn(self, attention_mask:torch.Tensor):
         np_attention_mask = np.array(attention_mask.detach().cpu())
         is_index_global_attn = np.apply_along_axis(self.get_global_token_ids, axis=1, arr=np_attention_mask)
-        is_index_global_attn = torch.tensor(is_index_global_attn)
-        return is_index_global_attn
+        is_index_global_attn_bool = torch.tensor(is_index_global_attn) > 0
+        return is_index_global_attn_bool
 
     def forward(
         self,
@@ -291,7 +280,6 @@ class LongformerBartEncoderWithDocType(BartPretrainedModel):
 
         embed_pos = self.embed_positions(input_shape)
         doc_type = self.doc_type_tokens(doc_type_ids)
-
         hidden_states = inputs_embeds + embed_pos + doc_type
         hidden_states = self.layernorm_embedding(hidden_states)
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)

@@ -5,6 +5,7 @@ import math
 from typing import Optional, Union, List, Any, Dict, Tuple
 from transformers.data.data_collator import DataCollatorForSeq2Seq, DataCollatorForLanguageModeling
 from transformers.tokenization_utils import PreTrainedTokenizerBase, BatchEncoding
+
 class DataCollatorForSeq2SeqWithDocType(DataCollatorForSeq2Seq):
     def __call__(self, features, return_tensors=None):
 
@@ -80,25 +81,11 @@ class DataCollatorForTextInfillingDocType:
     def __call__(self, features: List[Union[List[int], torch.Tensor, Dict[str, torch.Tensor]]]
                  ) -> Dict[str, torch.Tensor]:
         # Handle dict or lists with proper padding and conversion to tensor.
-        doc_type_ids = [feature["doc_type_ids"] for feature in features] if "doc_type_ids" in features[0].keys() else None
-        if doc_type_ids is not None:
-            max_label_length = max(len(l) for l in doc_type_ids)
-            padding_side = self.tokenizer.padding_side
-            for feature in features:
-                remainder = [0] * (max_label_length - len(feature["doc_type_ids"]))
-                if isinstance(feature["doc_type_ids"], list):
-                    feature["doc_type_ids"] = (
-                        feature["doc_type_ids"] + remainder if padding_side == "right" else remainder + feature["doc_type_ids"]
-                    )
-                elif padding_side == "right":
-                    feature["doc_type_ids"] = np.concatenate([feature["doc_type_ids"], remainder]).astype(np.int64)
-                else:
-                    feature["doc_type_ids"] = np.concatenate([remainder, feature["doc_type_ids"]]).astype(np.int64)
-            
         if isinstance(features[0], (dict, BatchEncoding)):
             batch = self.tokenizer.pad(features, return_tensors="pt", pad_to_multiple_of=self.pad_to_multiple_of)
         else:
             batch = {"input_ids": self._torch_collate_batch(features, self.tokenizer, pad_to_multiple_of=self.pad_to_multiple_of)}
+        
         # If special token mask has been preprocessed, pop it from the dict.
         special_tokens_mask = batch.pop("special_tokens_mask", None)
 
@@ -116,9 +103,8 @@ class DataCollatorForTextInfillingDocType:
                     special_tokens_mask: Optional[torch.Tensor] = None,
                     ) -> Tuple[torch.Tensor, torch.Tensor]:
         labels = input_ids.clone()
-        print(labels.shape,labels)
         new_doc_type_ids = doc_type_ids.clone()
-        print(new_doc_type_ids.shape, new_doc_type_ids)
+
         if special_tokens_mask is None:
             special_tokens_mask = [
                 self.tokenizer.get_special_tokens_mask(val, already_has_special_tokens=True) for val in labels.tolist()
@@ -182,7 +168,6 @@ class DataCollatorForTextInfillingDocType:
         new_input_ids = torch.full_like(input_ids, fill_value=self.tokenizer.pad_token_id)
         new_doc_type_ids = torch.full_like(input_ids, fill_value=0)
 
-        
         for i, example in enumerate(torch.split(input_ids, split_size_or_sections=1, dim=0)):
             new_example = example[0][~to_remove[i]]
             new_input_ids[i, 0:new_example.shape[0]] = new_example

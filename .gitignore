@@ -10,3 +10,4 @@ wandb/**
 model/*
 
 Dataloader.ipynb
+*.env
