@@ -26,7 +26,6 @@ from args import (
 )
 
 from dataloader import SumDataset
-from transformers.trainer_utils import get_last_checkpoint
 from processor import preprocess_function
 from rouge import compute_metrics
 
@@ -40,45 +39,63 @@ def seed_everything(seed):
     random.seed(seed)
 
 def main():
+    ## Arguments setting
     parser = HfArgumentParser(
         (ModelArguments, DataTrainingArguments, LoggingArguments, CustomSeq2SeqTrainingArguments)
     )
     model_args, data_args, log_args, training_args = parser.parse_args_into_dataclasses()
+    seed_everything(training_args.seed)
     if training_args.do_eval :
         training_args.predict_with_generate = True
-
     print(f"** Train mode: { training_args.do_train}")
     print(f"** model is from {model_args.model_name_or_path}")
     print(f"** data is from {data_args.dataset_name}")
     print(f'** max_target_length:', data_args.max_target_length)
 
-    last_checkpoint = None
     if os.path.isdir(training_args.output_dir) and training_args.do_train and not training_args.overwrite_output_dir:
-        last_checkpoint = get_last_checkpoint(training_args.output_dir)
-        if last_checkpoint is None and len(os.listdir(training_args.output_dir)) > 0:
-            raise ValueError(
-                f"Output directory ({training_args.output_dir}) already exists and is not empty. "
-                "Use --overwrite_output_dir to overcome."
-            )
-    seed_everything(training_args.seed)
-
+        raise ValueError(
+            f"Output directory ({training_args.output_dir}) already exists and is not empty. "
+            "Use --overwrite_output_dir to overcome."
+        )
+    
+    ## load and process dataset
     types = data_args.dataset_name.split(',')
     data_args.dataset_name = ['metamong1/summarization_' + dt for dt in types]
     
     load_dotenv(dotenv_path=data_args.use_auth_token_path)
     USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")
+
+    train_dataset = SumDataset(
+    data_args.dataset_name,
+    'train',
+    shuffle_seed=training_args.seed,
+    ratio=data_args.relative_sample_ratio,
+    USE_AUTH_TOKEN=USE_AUTH_TOKEN
+    ).load_data()
+
+    valid_dataset = SumDataset(
+        data_args.dataset_name,
+        'validation',
+        shuffle_seed=training_args.seed,
+        ratio=data_args.relative_sample_ratio,
+        USE_AUTH_TOKEN=USE_AUTH_TOKEN
+    ).load_data()
     
-    train_dataset = SumDataset(data_args.dataset_name, 'train', USE_AUTH_TOKEN=USE_AUTH_TOKEN).load_data()
-    valid_dataset = SumDataset(data_args.dataset_name, 'validation', USE_AUTH_TOKEN=USE_AUTH_TOKEN).load_data()
-    # train_dataset = train_dataset.shuffle(seed=42).select(range(1000))
-    # valid_dataset = valid_dataset.shuffle(seed=42).select(range(1000))
     train_dataset.cleanup_cache_files()
     valid_dataset.cleanup_cache_files()
 
-    if training_args.relative_eval_steps :
-        iterations =  training_args.num_train_epochs*math.ceil(len(train_dataset)/training_args.per_device_train_batch_size)
-        training_args.eval_steps = int(iterations // training_args.relative_eval_steps) ## dataset 크기에 상대적 eval step 적용
-        training_args.save_steps = training_args.eval_steps
+    train_dataset = train_dataset.shuffle(training_args.seed)
+    valid_dataset = valid_dataset.shuffle(training_args.seed)
+    print('** Dataset example', train_dataset[0]['title'], train_dataset[1]['title'], sep = '\n')
+
+    column_names = train_dataset.column_names
+    if data_args.relative_eval_steps :
+        ## Train 동안 relative_eval_steps count 회수 만큼 evaluation 
+        ## 전체 iteration에서 eval 횟수로 나누어 evaluation step
+        iter_by_epoch = math.ceil(len(train_dataset)/training_args.per_device_train_batch_size)
+        iterations =  iter_by_epoch * training_args.num_train_epochs
+        training_args.eval_steps = int(iterations // data_args.relative_eval_steps)
+        training_args.save_steps = training_args.eval_steps ## save step은 eval step의 배수여야 함
 
     print(f"train_dataset length: {len(train_dataset)}")
     print(f"valid_dataset length: {len(valid_dataset)}")
@@ -93,25 +110,23 @@ def main():
         cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast_tokenizer
     )
-    model = AutoModelForSeq2SeqLM.from_pretrained(
-        model_args.model_name_or_path,
-        from_tf=bool(".ckpt" in model_args.model_name_or_path),
-        config=config,
-        cache_dir=model_args.cache_dir
-    )
+    
+    def model_init():
+        # https://discuss.huggingface.co/t/fixing-the-random-seed-in-the-trainer-does-not-produce-the-same-results-across-runs/3442
+        # Producibility parameter initialization
+        return AutoModelForSeq2SeqLM.from_pretrained(
+            model_args.model_name_or_path,
+            from_tf=bool(".ckpt" in model_args.model_name_or_path),
+            config=config
+        )
     
     prep_fn  = partial(preprocess_function, tokenizer=tokenizer, data_args=data_args)
-    if training_args.do_train:
-        column_names = train_dataset.column_names
-    elif training_args.do_eval:
-        column_names = valid_dataset.column_names
-    
     train_dataset = train_dataset.map(
         prep_fn,
         batched=True,
         num_proc=data_args.preprocessing_num_workers,
         remove_columns=column_names,
-        load_from_cache_file=not data_args.overwrite_cache,
+        load_from_cache_file=False,
         desc="Running tokenizer on train dataset",
     )
 
@@ -120,14 +135,13 @@ def main():
         batched=True,
         num_proc=data_args.preprocessing_num_workers,
         remove_columns=column_names,
-        load_from_cache_file=not data_args.overwrite_cache,
+        load_from_cache_file=False,
         desc="Running tokenizer on validation dataset",
     )
 
     label_pad_token_id = -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
     data_collator = DataCollatorForSeq2Seq(
         tokenizer,
-        model=model,
         label_pad_token_id=label_pad_token_id,
         pad_to_multiple_of=8 if training_args.fp16 else None,
     )
@@ -146,23 +160,19 @@ def main():
     
     comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
     trainer = Seq2SeqTrainer(
-        model=model,
         args=training_args,
-        train_dataset=train_dataset, # if training_args.do_train else None,
-        eval_dataset=valid_dataset, # if training_args.do_eval else None,
+        train_dataset=train_dataset,
+        eval_dataset=valid_dataset,
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
+        model_init=model_init, ## model 성능 재현
         callbacks = [EarlyStoppingCallback(early_stopping_patience=training_args.es_patience)] if training_args.es_patience else None
     )
 
+
     if training_args.do_train:
-        checkpoint = None
-        if training_args.resume_from_checkpoint is not None:
-            checkpoint = training_args.resume_from_checkpoint
-        elif last_checkpoint is not None:
-            checkpoint = last_checkpoint
-        train_result = trainer.train(resume_from_checkpoint=checkpoint)
+        train_result = trainer.train()
         print("#########Train result: #########", train_result)
         trainer.save_model()
 
@@ -183,6 +193,8 @@ def main():
     
     num_beams = data_args.num_beams if data_args.num_beams is not None else training_args.generation_num_beams
     if not training_args.do_train and training_args.do_eval:
+
+
         metrics = trainer.evaluate(max_length=max_length, num_beams=num_beams, metric_key_prefix="eval")
         print("#########Eval metrics: #########", metrics) 
         max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(valid_dataset)
