@@ -61,3 +61,9 @@ class CustomSeq2SeqTrainingArguments(Seq2SeqTrainingArguments):
             "help": "patience steps for early stopping"
         },
     )
+    is_noam: bool = field(
+        default=False,
+        metadata={  
+            "help": "Whether to create noam scheduler"
+        },
+    )

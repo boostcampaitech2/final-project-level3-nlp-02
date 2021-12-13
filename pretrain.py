@@ -21,7 +21,7 @@ from args import (
     DataTrainingArguments,
     LoggingArguments,
     ModelArguments,
-    CustomSeq2SeqTrainingArguments
+    CustomSeq2SeqTrainingArguments,
 )
 
 from dataloader import SumDataset
@@ -91,24 +91,30 @@ def main():
     config = LongformerBartConfig.from_pretrained(
             model_args.config_name if model_args.config_name else model_args.model_name_or_path)
     
-    if not os.path.exists(training_args.model_path):
-        make_model_for_changing_postion_embedding(config,data_args,model_args)
+    # if not os.path.exists(training_args.model_path):
+    #     make_model_for_changing_postion_embedding(config,data_args,model_args)
 
+    config.encoder_layers = model_args.encoder_layer_size
+    config.decoder_layers = model_args.decoder_layer_size
+    config.d_model = model_args.hidden_size
+    config.encoder_attention_heads = model_args.attention_head_size
+    config.decoder_attention_heads = model_args.attention_head_size
     config.max_position_embeddings = data_args.max_source_length
     config.max_target_positions = data_args.max_target_length
-    config.attention_window_size = model_args.attention_window_size
-    config.attention_window = [model_args.attention_window_size]*config.encoder_layers
-    
+    config.attention_window = [model_args.attention_window_size]*model_args.encoder_layer_size
+    config.attention_dropout = model_args.dropout
+    config.dropout = model_args.dropout
+
     tokenizer = BartTokenizerWithDocType.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast_tokenizer
     )
-
+    training_args.model_config = config
     def model_init(training_args):
         # https://discuss.huggingface.co/t/fixing-the-random-seed-in-the-trainer-does-not-produce-the-same-results-across-runs/3442
         # Producibility parameter initialization
-        model = LongformerBartWithDoctypeForConditionalGeneration.from_pretrained(training_args.model_path)
+        model = LongformerBartWithDoctypeForConditionalGeneration._from_config(training_args.model_config)
         return model
         
     prep_fn  = partial(preprocess_function, tokenizer=tokenizer, data_args=data_args)
@@ -147,16 +153,18 @@ def main():
     )
     wandb.config.update(training_args)
     
-    comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
+    # comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
     
     trainer = Seq2SeqTrainerWithDocType(
         args=training_args,
         train_dataset=train_dataset,
         tokenizer=tokenizer,
         data_collator=data_collator,
+        config=config,
         # compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
         model_init=model_init,
     )
+    
 
     if training_args.do_train:
         train_result = trainer.train()

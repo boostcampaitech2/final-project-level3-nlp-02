@@ -9,14 +9,36 @@ python pretrain.py \
 --output_dir model/longformerbart_bV1 \
 --overwrite_output_dir True \
 --num_train_epochs 10 \
---weight_decay 1e-2 \
+--weight_decay 1e-5 \
 --warmup_steps 20000 \
 --learning_rate 2e-04 \
 --max_source_length 2048 \
 --max_target_length 2048 \
-# --num_samples 10 \
 --project_name baseV1.0_Kobart \
---per_device_train_batch_size 1 \
---warmup_ratio 0.5 \
---wandb_unique_tag longformerBart_t1_attn128_2048_2048_2e04_warmup50%_pretraining \
---is_part
+--per_device_train_batch_size 2 \
+--gradient_accumulation_steps 4 \
+--wandb_unique_tag longformerBart_pretraining \
+--hidden_size 128 \
+--encoder_layer_size 3 \
+--decoder_layer_size 3 \
+--attention_head_size 4 \
+--attention_window_size 32 \
+--num_samples 10 \
+--dropout 0.5
+
+
+
+
+
+# 1. h_dim 128/256 => 논문 => 128 / 256
+# 2. layer depth 3/1 6/3 => 논문 => 3/3
+# +a window_size, head = 32 / 64 => (4)
+# 3. dropout 70/50/30 => 선택 => 50/70
+# 4. weight decay 1e-5 => fix
+# 5. warmup => 
+# 5. teacher forcing -> lr 형태로 100 -> 0 => (구현 필요) -> 해야죠 => fine_tuning => 내일
+# 6. LR scheduler => noam => (구현) -> 끝
+# 7. LR : +-1e-4
+
+
+

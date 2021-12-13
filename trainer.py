@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -6,7 +7,7 @@ from transformers import Seq2SeqTrainer
 
 from typing import Any, Dict, List, Optional, Tuple, Union
 from packaging import version
-
+from torch.optim.lr_scheduler import LambdaLR
 from transformers.deepspeed import is_deepspeed_zero3_enabled
 from transformers.trainer import Trainer
 from transformers.trainer_utils import PredictionOutput
@@ -25,8 +26,9 @@ class Seq2SeqTrainerWithDocType(Seq2SeqTrainer):
     """
     original Trainer source code: https://github.com/huggingface/transformers/blob/master/src/transformers/trainer.py
     """
-    def __init__(self, **kwargs):
+    def __init__(self, config, **kwargs):
         super(Seq2SeqTrainerWithDocType, self).__init__(**kwargs)
+        self.config = config
         
     def prediction_step(
         self,
@@ -35,26 +37,6 @@ class Seq2SeqTrainerWithDocType(Seq2SeqTrainer):
         prediction_loss_only: bool,
         ignore_keys: Optional[List[str]] = None,
     ) -> Tuple[Optional[float], Optional[torch.Tensor], Optional[torch.Tensor]]:
-        """
-        Perform an evaluation step on :obj:`model` using obj:`inputs`.
-
-        Subclass and override to inject custom behavior.
-
-        Args:
-            model (:obj:`nn.Module`):
-                The model to evaluate.
-            inputs (:obj:`Dict[str, Union[torch.Tensor, Any]]`):
-                The inputs and targets of the model.
-
-                The dictionary will be unpacked before being fed to the model. Most models expect the targets under the
-                argument :obj:`labels`. Check your model's documentation for all accepted arguments.
-            prediction_loss_only (:obj:`bool`):
-                Whether or not to return the loss only.
-
-        Return:
-            Tuple[Optional[float], Optional[torch.Tensor], Optional[torch.Tensor]]: A tuple with the loss, logits and
-            labels (each being optional).
-        """
 
         if not self.args.predict_with_generate or prediction_loss_only:
             return super().prediction_step(
@@ -114,6 +96,30 @@ class Seq2SeqTrainerWithDocType(Seq2SeqTrainer):
             raise RuntimeError("model_init should have 0 or 1 argument.")
         if model is None:
             raise RuntimeError("model_init should not return None.")
-
+        breakpoint()
         return model
+    
+    def create_optimizer_and_scheduler(self, num_training_steps: int):
+        super().__init__(num_training_steps)
+        self.create_optimizer()
+        self.create_scheduler(num_training_steps=num_training_steps, optimizer=self.optimizer)
+    
+    def create_scheduler(self, num_training_steps: int, optimizer: torch.optim.Optimizer = None):
+        if not self.args.is_noam:
+            super().__init__(num_training_steps, optimizer)
+        else:
+            
+            if self.lr_scheduler is None:
+                self.lr_scheduler = self.get_noam_schedule_with_warmup(
+                    self.args.lr_scheduler_type,
+                    optimizer=self.optimizer if optimizer is None else optimizer,
+                    num_warmup_steps=self.args.get_warmup_steps(num_training_steps),
+                    num_training_steps=num_training_steps,
+                )
+            return self.lr_scheduler
 
+    def get_noam_schedule_with_warmup(self, optimizer, num_warmup_steps, last_epoch=-1):
+        def lr_lambda(current_step: int):
+            return 1/math.sqrt(self.config.d_model) * min(1/math.sqrt(current_step), current_step /(num_warmup_steps**(1.5)))
+
+        return LambdaLR(optimizer, lr_lambda, last_epoch)

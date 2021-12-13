@@ -30,7 +30,7 @@ from transformers.models.bart.modeling_bart import (
 class LongformerBartConfig(BartConfig):
     pad_token_id_idx = 4 # pad token id in Bart Tokenizer
     def __init__(self,
-        attention_window_size:int = 128,
+        attention_window:List[int] = [512]*6,
         attention_dropout:float = 0.1,
         doc_type_size:int = 4,
         architectures:str = 'LongformerBartConditionalGeneration',
@@ -48,7 +48,7 @@ class LongformerBartConfig(BartConfig):
         """
 
         super().__init__(**kwargs) 
-        self.attention_window = [attention_window_size]*self.encoder_layers
+        self.attention_window = attention_window
         self.attention_dropout = attention_dropout
         self.architectures = [architectures]
         self.max_position_embeddings = max_position_embeddings
