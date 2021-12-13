@@ -12,7 +12,7 @@ def dynamic_quantization(
     *,
     check_point='gogamza/kobart-summarization',
     test_dataset = 'metamong1/summarization_paper',
-    test_dataset_size = 100,
+    test_dataset_size = 1000,
     test_categories='rouge,time,size',
     tokenizer=None,
     model = None,
@@ -42,7 +42,7 @@ def half_quantization(
     *,
     check_point='gogamza/kobart-summarization',
     test_dataset = 'metamong1/summarization_paper',
-    test_dataset_size = 100,
+    test_dataset_size = 1000,
     test_categories='rouge,time,size',
     tokenizer=None,
     model = None,
@@ -110,7 +110,7 @@ if __name__ == '__main__':
     parser.add_argument('--quantization_type', type=str, default='half_quantization', help='quantization type. ex: half_quantization, dynamic_quantization (default: half_quantization)')
     parser.add_argument('--check_point', type=str, default='gogamza/kobart-summarization', help='model checkpoint (default: gogamza/kobart-summarization)')
     parser.add_argument('--test_dataset', type=str, default='metamong1/summarization_paper', help='test dataset (default: metamong1/summarization_paper)')
-    parser.add_argument('--test_dataset_size', type=int, default=100, help='test dataset size (defualt: 100)')
+    parser.add_argument('--test_dataset_size', type=int, default=1000, help='test dataset size (defualt: 1000)')
     parser.add_argument('--cpu_flag', action='store_true', help='use cpu (default: gpu)')
     parser.add_argument('--test_categories', type=str, default='rouge,time,size', help='test categories seperated by , ex: time,size,rouge (defualt: rouge,time,size)')
     parser.add_argument('--no_test_flag', action='store_false', help='do test performance (default: False)')
