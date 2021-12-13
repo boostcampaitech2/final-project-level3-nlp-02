@@ -30,6 +30,8 @@ from processor import preprocess_function
 from rouge import compute_metrics
 from knowledge_distillation import DistillationTrainer, TinyTrainer
 
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
 def seed_everything(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
@@ -162,7 +164,8 @@ def main():
     comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
     if training_args.distillation_type == 'distil':
         print('DistillationTrainer is used!!!')
-        teacher_model=AutoModelForSeq2SeqLM.from_pretrained(training_args.teacher_check_point)
+        teacher_config = AutoConfig.from_pretrained(training_args.teacher_check_point)
+        teacher_model=AutoModelForSeq2SeqLM.from_pretrained(training_args.teacher_check_point, config=teacher_config).to(device)
         trainer = DistillationTrainer(
             args=training_args,
             teacher_model = teacher_model,
@@ -176,7 +179,8 @@ def main():
         )
     elif training_args.distillation_type == 'tiny':
         print('TinyTrainer is used!!!')
-        teacher_model=AutoModelForSeq2SeqLM.from_pretrained(training_args.teacher_check_point)
+        teacher_config = AutoConfig.from_pretrained(training_args.teacher_check_point)
+        teacher_model=AutoModelForSeq2SeqLM.from_pretrained(training_args.teacher_check_point, config=teacher_config).to(device)
         trainer = TinyTrainer(
             args=training_args,
             teacher_model = teacher_model,
