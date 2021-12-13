@@ -28,6 +28,7 @@ from args import (
 from dataloader import SumDataset
 from processor import preprocess_function
 from rouge import compute_metrics
+from knowledge_distillation import DistillationTrainer, TinyTrainer
 
 def seed_everything(seed):
     torch.manual_seed(seed)
@@ -159,16 +160,39 @@ def main():
     wandb.config.update(training_args)
     
     comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
-    trainer = Seq2SeqTrainer(
-        args=training_args,
-        train_dataset=train_dataset,
-        eval_dataset=valid_dataset,
-        tokenizer=tokenizer,
-        data_collator=data_collator,
-        compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
-        model_init=model_init, ## model 성능 재현
-        callbacks = [EarlyStoppingCallback(early_stopping_patience=training_args.es_patience)] if training_args.es_patience else None
-    )
+    if training_args.distillation_type == 'distil':
+        trainer = DistillationTrainer(
+            args=training_args,
+            train_dataset=train_dataset,
+            eval_dataset=valid_dataset,
+            tokenizer=tokenizer,
+            data_collator=data_collator,
+            compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
+            model_init=model_init, ## model 성능 재현
+            callbacks = [EarlyStoppingCallback(early_stopping_patience=training_args.es_patience)] if training_args.es_patience else None
+        )
+    elif training_args.distillation_type == 'tiny':
+        trainer = DistillationTrainer(
+            args=training_args,
+            train_dataset=train_dataset,
+            eval_dataset=valid_dataset,
+            tokenizer=tokenizer,
+            data_collator=data_collator,
+            compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
+            model_init=model_init, ## model 성능 재현
+            callbacks = [EarlyStoppingCallback(early_stopping_patience=training_args.es_patience)] if training_args.es_patience else None
+        )
+    else:
+        trainer = Seq2SeqTrainer(
+            args=training_args,
+            train_dataset=train_dataset,
+            eval_dataset=valid_dataset,
+            tokenizer=tokenizer,
+            data_collator=data_collator,
+            compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
+            model_init=model_init, ## model 성능 재현
+            callbacks = [EarlyStoppingCallback(early_stopping_patience=training_args.es_patience)] if training_args.es_patience else None
+        )
 
 
     if training_args.do_train:
