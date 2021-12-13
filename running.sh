@@ -3,11 +3,11 @@
 ## Pretraining using Infilling
 ## 학습 파라미터 : epoch, weight decay, learning rate, warmup steps
 
+
 python pretrain.py \
 --do_train \
 --is_pretrain \
---output_dir model/longformerbart_bV1 \
---overwrite_output_dir True \
+--output_dir model/longformerbart_bV2 \
 --num_train_epochs 10 \
 --weight_decay 1e-5 \
 --warmup_steps 20000 \
@@ -17,14 +17,18 @@ python pretrain.py \
 --project_name baseV1.0_Kobart \
 --per_device_train_batch_size 2 \
 --gradient_accumulation_steps 4 \
---wandb_unique_tag longformerBart_pretraining \
---hidden_size 128 \
+--logging_steps 2000 \
+--save_strategy epoch \
+--evaluation_strategy no \
+--wandb_unique_tag longformerBart_pretraining_V2 \
+--hidden_size 256 \
 --encoder_layer_size 3 \
 --decoder_layer_size 3 \
 --attention_head_size 4 \
---attention_window_size 32 \
---num_samples 10 \
---dropout 0.5
+--attention_window_size 64 \
+--num_samples 1000 \
+--dropout 0.7 \
+--is_noam 
 
 
 

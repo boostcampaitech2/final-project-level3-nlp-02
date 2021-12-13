@@ -29,6 +29,7 @@ from processor import preprocess_function
 from rouge import compute_metrics
 
 from trainer import Seq2SeqTrainerWithDocType
+from transformers.trainer_utils import get_last_checkpoint
 
 from models.rebuilding_longformerbart import make_model_for_changing_postion_embedding
 from models.modeling_longformerbart import (
@@ -64,11 +65,11 @@ def main():
     print(f'** max_target_length:', data_args.max_target_length)
 
 
-    if os.path.isdir(training_args.output_dir) and training_args.do_train and not training_args.overwrite_output_dir:
-        raise ValueError(
-            f"Output directory ({training_args.output_dir}) already exists and is not empty. "
-            "Use --overwrite_output_dir to overcome."
-        )
+    # if os.path.isdir(training_args.output_dir) and training_args.do_train and not training_args.overwrite_output_dir:
+    #     raise ValueError(
+    #         f"Output directory ({training_args.output_dir}) already exists and is not empty. "
+    #         "Use --overwrite_output_dir to overcome."
+    #     )
 
     ## load and process dataset
     load_dotenv(dotenv_path=data_args.use_auth_token_path)
@@ -110,6 +111,7 @@ def main():
         cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast_tokenizer
     )
+    
     training_args.model_config = config
     def model_init(training_args):
         # https://discuss.huggingface.co/t/fixing-the-random-seed-in-the-trainer-does-not-produce-the-same-results-across-runs/3442
@@ -153,23 +155,35 @@ def main():
     )
     wandb.config.update(training_args)
     
-    # comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
+    comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
     
     trainer = Seq2SeqTrainerWithDocType(
         args=training_args,
         train_dataset=train_dataset,
         tokenizer=tokenizer,
         data_collator=data_collator,
-        config=config,
         # compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
         model_init=model_init,
     )
-    
 
     if training_args.do_train:
-        train_result = trainer.train()
+        last_checkpoint = None
+        if (
+            os.path.isdir(training_args.output_dir)
+            and training_args.do_train
+            and not training_args.overwrite_output_dir
+        ):
+
+            last_checkpoint = get_last_checkpoint(training_args.output_dir)
+            if last_checkpoint is None and len(os.listdir(training_args.output_dir)) > 0:
+                raise ValueError(
+                    f"Output directory ({training_args.output_dir}) already exists and is not empty. "
+                    "Use --overwrite_output_dir to overcome."
+                )
+
+        
+        train_result = trainer.train(resume_from_checkpoint=last_checkpoint)
         print("#########Train result: #########", train_result)
-        trainer.save_model()
 
         metrics = train_result.metrics
         max_train_samples = (
