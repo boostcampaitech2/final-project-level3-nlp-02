@@ -1,12 +1,10 @@
-# -*- coding: utf-8 -*-
 import torch
 import torch.nn as nn
 import random
 import math
 
-from transformers import AutoModel, AutoConfig, BigBirdConfig, BigBirdPreTrainedModel, AutoTokenizer, AutoModelForCausalLM
+from transformers import  AutoConfig, BigBirdConfig, BigBirdPreTrainedModel
 from packaging import version
-from transformers.models.auto.modeling_auto import AutoModelForSeq2SeqLM
 
 from transformers.utils import logging
 from typing import Optional
@@ -498,7 +496,8 @@ class BigBirdModelWithDoctype(BigBirdPreTrainedModel):
                 attention_mask, (0, padding_len), value=False
             )  # no attention on the padding tokens
             token_type_ids = nn.functional.pad(token_type_ids, (0, padding_len), value=0)  # pad with token_type_id = 0
-            doc_type_ids = nn.functional.pad(doc_type_ids, (0, padding_len), value=0) 
+            if doc_type_ids is not None:
+                doc_type_ids = nn.functional.pad(doc_type_ids, (0, padding_len), value=0) 
 
         return padding_len, input_ids, attention_mask, token_type_ids, doc_type_ids, position_ids, inputs_embeds
 
