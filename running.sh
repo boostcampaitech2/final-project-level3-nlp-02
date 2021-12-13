@@ -36,7 +36,8 @@
 # python predict.py \
 # --model_name_or_path baseV1.0_Kobart \
 # --num_beams 3
-python train_kobigbirdbart.py \
+
+python train.py \
 --model_name_or_path monologg/kobigbird-bert-base \
 --use_kobigbird_bart True \
 --do_train \
@@ -51,9 +52,15 @@ python train_kobigbirdbart.py \
 --relative_eval_steps 10 \
 --es_patience 3 \
 --load_best_model_at_end True \
---relative_sample_ratio 0.0005 \
+--relative_sample_ratio 0.5 \
 --project_name kobigbirdbart \
 --wandb_unique_tag kobigbirdbart_use_doc_type_ids \
 --per_device_train_batch_size 2 \
 --per_device_eval_batch_size 2 \
+--is_part True \
 --use_doc_type_ids True
+
+# python predict.py \
+# --model_name_or_path /opt/ml/final_project/model/kobigbirdbart
+# --tokenizer_name monologg/kobigbird-bert-base \
+# --num_beams 3

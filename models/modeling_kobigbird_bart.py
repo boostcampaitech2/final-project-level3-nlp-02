@@ -2,27 +2,21 @@
 import torch
 import torch.nn as nn
 import random
-import torch.nn.functional as F
-import warnings
+import math
 
 from transformers import AutoModel, AutoConfig, BigBirdConfig, BigBirdPreTrainedModel, AutoTokenizer, AutoModelForCausalLM
 from packaging import version
 from transformers.models.auto.modeling_auto import AutoModelForSeq2SeqLM
 
 from transformers.utils import logging
-from typing import Optional, Tuple, List
+from typing import Optional
 
 
-from transformers.models.big_bird.modeling_big_bird import BigBirdEmbeddings, BigBirdEncoder
+from transformers.models.big_bird.modeling_big_bird import BigBirdEmbeddings, BigBirdEncoder, BigBirdLayer
 from transformers.modeling_outputs import (BaseModelOutputWithPoolingAndCrossAttentions, 
-                                           BaseModelOutputWithPastAndCrossAttentions, Seq2SeqModelOutput, Seq2SeqLMOutput)
-from transformers.file_utils import (
-    ModelOutput,
-    add_code_sample_docstrings,
-    add_start_docstrings,
-    add_start_docstrings_to_model_forward,
-)
-from transformers.models.bart.modeling_bart import BartPretrainedModel, BartDecoderLayer, BartLearnedPositionalEmbedding, BartModel, BartPretrainedModel
+                                           BaseModelOutputWithPastAndCrossAttentions, Seq2SeqLMOutput)
+
+from transformers.models.bart.modeling_bart import BartPretrainedModel, BartDecoderLayer, BartLearnedPositionalEmbedding, BartPretrainedModel
 from transformers.models.bart.configuration_bart import BartConfig
 
 from transformers.modeling_utils import PreTrainedModel
@@ -31,9 +25,6 @@ from transformers.models.encoder_decoder.configuration_encoder_decoder import En
 from torch.nn import CrossEntropyLoss
 
 logger = logging.get_logger(__name__)
-
-logger = logging.get_logger(__name__)
-# from transformers.models.big_bird.configuration_big_bird import BigBirdConfig
 
 def shift_tokens_right(input_ids: torch.Tensor, pad_token_id: int, decoder_start_token_id: int):
     """
@@ -161,6 +152,8 @@ class BigBirdEmbeddingsWithDoctype(BigBirdEmbeddings):
         embeddings = self.LayerNorm(embeddings)
         
         return embeddings
+
+
 class BigBirdModelWithDoctype(BigBirdPreTrainedModel):
     """
     The model can behave as an encoder (with only self-attention) as well as a decoder, in which case a layer of
@@ -795,14 +788,6 @@ class BartDecoderWithDoctype(BartPretrainedModel):
             cross_attentions=all_cross_attentions,
         )
 
-
-
-# DEPRECATION_WARNING = (
-#     "Version v4.12.0 introduces a better way to train encoder-decoder models by computing the loss inside the "
-#     "encoder-decoder framework rather than in the decoder itself. You may observe training discrepancies if fine-tuning "
-#     "a model trained with versions anterior to 4.12.0. The decoder_input_ids are now created based on the labels, no "
-#     "need to pass them yourself anymore."
-# )
 class EncoderDecoderModel(PreTrainedModel):
     r"""
     :class:`~transformers.EncoderDecoderModel` is a generic model class that will be instantiated as a transformer
@@ -827,15 +812,6 @@ class EncoderDecoderModel(PreTrainedModel):
             if not isinstance(config, self.config_class):
                 raise ValueError(f"Config: {config} has to be of type {self.config_class}")
 
-#         if config.decoder.cross_attention_hidden_size is not None:
-#             if config.decoder.cross_attention_hidden_size != config.encoder.hidden_size:
-#                 raise ValueError(
-#                     "If `cross_attention_hidden_size` is specified in the decoder's configuration, "
-#                     "it has to be equal to the encoder's `hidden_size`. "
-#                     f"Got {config.decoder.cross_attention_hidden_size} for `config.decoder.cross_attention_hidden_size` "
-#                     f"and {config.encoder.hidden_size} for `config.encoder.hidden_size`."
-#                 )
-
         # initialize with config
         super().__init__(config)
 
@@ -847,7 +823,7 @@ class EncoderDecoderModel(PreTrainedModel):
         if decoder is None:
             from transformers.models.auto.modeling_auto import AutoModelForCausalLM
 
-            decoder = AutoModelForCausalLM.from_config(config.decoder)
+            decoder = BartDecoderWithDoctype(config.decoder)
 
         self.encoder = encoder
         self.decoder = decoder
@@ -878,14 +854,11 @@ class EncoderDecoderModel(PreTrainedModel):
                 f"The encoder {self.encoder} should not have a LM Head. Please use a model without LM Head"
             )
         
-        ################3 loss 계산을 위해서 추가한 코드입니다.(BartForConditionalGeneration class 참조)
         self.lm_head = nn.Linear(config.decoder.d_model, config.encoder.vocab_size, bias=False)
         self.register_buffer("final_logits_bias", torch.zeros((1, config.encoder.vocab_size)))
-        ################3
         # tie encoder, decoder weights if config set accordingly
         self.tie_weights()
-        
-    ################3 loss 계산으로 인해 추가 코드!(BartForConditionalGeneration class 참조)
+
     def resize_token_embeddings(self, new_num_tokens: int) -> nn.Embedding:
         new_embeddings = super().resize_token_embeddings(new_num_tokens)
         self._resize_final_logits_bias(new_num_tokens)
@@ -899,7 +872,6 @@ class EncoderDecoderModel(PreTrainedModel):
             extra_bias = torch.zeros((1, new_num_tokens - old_num_tokens), device=self.final_logits_bias.device)
             new_bias = torch.cat([self.final_logits_bias, extra_bias], dim=1)
         self.register_buffer("final_logits_bias", new_bias)
-    ######################
     
     def tie_weights(self):
         # tie encoder & decoder if needed
@@ -1028,7 +1000,7 @@ class EncoderDecoderModel(PreTrainedModel):
 
                 kwargs_encoder["config"] = encoder_config
 
-            encoder = AutoModel.from_pretrained(encoder_pretrained_model_name_or_path, *model_args, **kwargs_encoder)
+            encoder = BigBirdModelWithDoctype.from_pretrained(encoder_pretrained_model_name_or_path, *model_args, **kwargs_encoder)
 
         decoder = kwargs_decoder.pop("model", None)
         if decoder is None:
@@ -1061,7 +1033,7 @@ class EncoderDecoderModel(PreTrainedModel):
                     "`decoder_config` to `.from_encoder_decoder_pretrained(...)`"
                 )
 
-            decoder = AutoModelForSeq2SeqLM.from_pretrained(decoder_pretrained_model_name_or_path, **kwargs_decoder)
+            decoder = BartDecoderWithDoctype.from_pretrained(decoder_pretrained_model_name_or_path, **kwargs_decoder)
 
         # instantiate config with corresponding kwargs
         config = EncoderDecoderConfig.from_encoder_decoder_configs(encoder.config, decoder.config, **kwargs)
@@ -1157,8 +1129,6 @@ class EncoderDecoderModel(PreTrainedModel):
         )
 
         # Compute loss independent from decoder (as some shift the logits inside them)
-        
-        ################## 추가부분(BartForConditionalGeneration class 참조했습니다.)
         lm_logits = self.lm_head(decoder_outputs[0]) + self.final_logits_bias
 
         loss = None
@@ -1166,13 +1136,6 @@ class EncoderDecoderModel(PreTrainedModel):
             loss_fct = CrossEntropyLoss()
             # decoder의 d_model(vocab_size)가 encoder vocab_size로 대체(이유는 encoder word_embedding이 decoder word_embedding으로 대체)
             loss = loss_fct(lm_logits.view(-1, self.config.encoder.vocab_size), labels.view(-1))
-        ################3아래 주석은 삭제 부분
-#         loss = None
-#         if labels is not None:
-#             warnings.warn(DEPRECATION_WARNING, FutureWarning)
-#             logits = decoder_outputs.logits if return_dict else decoder_outputs[1]
-#             loss_fct = CrossEntropyLoss()
-#             loss = loss_fct(logits.reshape(-1, self.decoder.config.vocab_size), labels.view(-1))
 
         if not return_dict:
             if loss is not None:
@@ -1182,7 +1145,7 @@ class EncoderDecoderModel(PreTrainedModel):
 
         return Seq2SeqLMOutput(
             loss=loss,
-            logits=lm_logits, ######### 바뀐 부분!
+            logits=lm_logits,
             past_key_values=decoder_outputs.past_key_values,
             decoder_hidden_states=decoder_outputs.hidden_states,
             decoder_attentions=decoder_outputs.attentions,
@@ -1236,21 +1199,26 @@ class EncoderDecoderModel(PreTrainedModel):
         return self.decoder._reorder_cache(past, beam_idx)
 
 if __name__ == "__main__" :
-    config_e = BigBirdConfigWithDoctype.from_pretrained("monologg/kobigbird-bert-base")
-    config_d = BartConfigWithDoctype.from_pretrained("gogamza/kobart-base-v1")
+    # config_e = BigBirdConfigWithDoctype.from_pretrained("monologg/kobigbird-bert-base")
+    # config_d = BartConfigWithDoctype.from_pretrained("gogamza/kobart-base-v1")
     
-    config_e.doc_type_size = 3
-    config_d.doc_type_size = 3
-    config_d.pad_token_id = 0
-    config_d.max_position_embeddings = 128
+    # config_e.doc_type_size = 3
+    
+    # config_d.vocab_size = 32500
+    # config_d.doc_type_size = 3
+    # config_d.pad_token_id = 0
+    # config_d.max_position_embeddings = 128
 
-    tokenizer = AutoTokenizer.from_pretrained(
-        "monologg/kobigbird-bert-base",
-        use_fast=True
-    )
+    # encoder = BigBirdModelWithDoctype.from_pretrained("monologg/kobigbird-bert-base",config=config_e)
 
-    encoder = BigBirdModelWithDoctype.from_pretrained("monologg/kobigbird-bert-base",config=config_e)
-    decoder = BartDecoderWithDoctype.from_pretrained("gogamza/kobart-base-v1", config=config_d)
-    decoder.embed_tokens = encoder.embeddings.word_embeddings
-    total_model = EncoderDecoderModel(encoder = encoder, decoder = decoder)
+    # decoder = BartDecoderWithDoctype.from_pretrained("gogamza/kobart-base-v1", config=config_d)
+    # decoder.embed_tokens = encoder.embeddings.word_embeddings
 
+    # total_model = EncoderDecoderModel(encoder = encoder, decoder = decoder)
+    # total_model.save_pretrained("/opt/ml/final_project/kobigbird_test/")
+    # total_model.encoder.save_pretrained("/opt/ml/final_project/kobigbird/encoder")
+    # total_model.decoder.save_pretrained("/opt/ml/final_project/kobigbird/decoder")
+
+    total_model = EncoderDecoderModel.from_pretrained("/opt/ml/final_project/kobigbird_test")
+
+    print(total_model)

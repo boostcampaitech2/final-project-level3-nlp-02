@@ -17,6 +17,7 @@ from args import (
     GenerationArguments
 )
 
+from models.modeling_kobigbird_bart import EncoderDecoderModel
 
 @contextmanager
 def timer(name) :
@@ -39,11 +40,16 @@ def main() :
         cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast_tokenizer
     )
-    model = AutoModelForSeq2SeqLM.from_pretrained(
-        model_args.model_name_or_path,
-        from_tf=bool(".ckpt" in model_args.model_name_or_path),
-        config=config,
-    )
+    breakpoint()
+
+    if model_args.use_kobigbird_bart :
+        model = EncoderDecoderModel.from_pretrained(model_args.model_name_or_path)
+    else :
+        model = AutoModelForSeq2SeqLM.from_pretrained(
+            model_args.model_name_or_path,
+            from_tf=bool(".ckpt" in model_args.model_name_or_path),
+            config=config,
+        )
     
     ### test 용 code ###
     from dataloader import SumDataset

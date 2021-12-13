@@ -8,6 +8,8 @@ import torch
 import wandb
 
 from functools import partial
+
+from datasets import load_dataset
 from transformers import (
     AutoTokenizer,
     AutoConfig,
@@ -25,9 +27,17 @@ from args import (
     CustomSeq2SeqTrainingArguments
 )
 
-from dataloader import SumDataset
+from data_collator import DataCollatorForSeq2SeqWithDocType
 from processor import preprocess_function
 from rouge import compute_metrics
+
+from models.modeling_kobigbird_bart import (
+    EncoderDecoderModel, 
+    BigBirdConfigWithDoctype, 
+    BartConfigWithDoctype, 
+    BigBirdModelWithDoctype, 
+    BartDecoderWithDoctype
+)
 
 def seed_everything(seed):
     torch.manual_seed(seed)
@@ -63,24 +73,13 @@ def main():
     data_args.dataset_name = ['metamong1/summarization_' + dt for dt in types]
     
     load_dotenv(dotenv_path=data_args.use_auth_token_path)
-    USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")
-
-    train_dataset = SumDataset(
-    data_args.dataset_name,
-    'train',
-    shuffle_seed=training_args.seed,
-    ratio=data_args.relative_sample_ratio,
-    USE_AUTH_TOKEN=USE_AUTH_TOKEN
-    ).load_data()
-
-    valid_dataset = SumDataset(
-        data_args.dataset_name,
-        'validation',
-        shuffle_seed=training_args.seed,
-        ratio=data_args.relative_sample_ratio,
-        USE_AUTH_TOKEN=USE_AUTH_TOKEN
-    ).load_data()
+    USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")    
     
+    dataset_name = "metamong1/summarization"
+    datasets = load_dataset(dataset_name + "_part" if data_args.is_part else dataset_name, use_auth_token=USE_AUTH_TOKEN)
+    train_dataset = datasets['train']
+    valid_dataset = datasets['validation']
+
     train_dataset.cleanup_cache_files()
     valid_dataset.cleanup_cache_files()
 
@@ -101,10 +100,29 @@ def main():
     print(f"valid_dataset length: {len(valid_dataset)}")
     print(f"eval_steps: {training_args.eval_steps}")
 
-    config = AutoConfig.from_pretrained(
-        model_args.config_name if model_args.config_name else model_args.model_name_or_path,
-        cache_dir=model_args.cache_dir
-    )
+
+    if model_args.use_kobigbird_bart:
+        config_e = BigBirdConfigWithDoctype.from_pretrained("monologg/kobigbird-bert-base")
+        config_d = BartConfigWithDoctype.from_pretrained("gogamza/kobart-base-v1")
+        
+        # encoder layer 6개 설정
+        config_e.encoder_layers = 6
+
+        # decoder config 설정
+        config_d.vocab_size = config_e.vocab_size
+        config_d.pad_token_id = 0
+        config_d.max_position_embeddings = 128
+        
+        # doc_type_embedding 사용할 경우
+        if data_args.use_doc_type_ids :
+            config_e.doc_type_size = 3
+            config_d.doc_type_size = 3
+    else :
+        config = AutoConfig.from_pretrained(
+            model_args.config_name if model_args.config_name else model_args.model_name_or_path,
+            cache_dir=model_args.cache_dir
+        )
+
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
@@ -114,11 +132,26 @@ def main():
     def model_init():
         # https://discuss.huggingface.co/t/fixing-the-random-seed-in-the-trainer-does-not-produce-the-same-results-across-runs/3442
         # Producibility parameter initialization
-        return AutoModelForSeq2SeqLM.from_pretrained(
-            model_args.model_name_or_path,
-            from_tf=bool(".ckpt" in model_args.model_name_or_path),
-            config=config
-        )
+        if model_args.use_kobigbird_bart:
+            encoder = BigBirdModelWithDoctype.from_pretrained("monologg/kobigbird-bert-base",config=config_e)
+            decoder = BartDecoderWithDoctype.from_pretrained("gogamza/kobart-base-v1", config=config_d)
+
+            for i in range(1,6):
+                encoder.encoder.layer[i] = encoder.encoder.layer[2*i]
+
+            encoder.encoder.layer = encoder.encoder.layer[:config_e.encoder_layers]
+            # decoder shared imbedding 설정
+            decoder.embed_tokens = encoder.embeddings.word_embeddings
+
+            total_model = EncoderDecoderModel(encoder = encoder, decoder = decoder)
+            print(total_model)
+            return total_model
+        else :
+            return AutoModelForSeq2SeqLM.from_pretrained(
+                model_args.model_name_or_path,
+                from_tf=bool(".ckpt" in model_args.model_name_or_path),
+                config=config
+            )
     
     prep_fn  = partial(preprocess_function, tokenizer=tokenizer, data_args=data_args)
     train_dataset = train_dataset.map(
@@ -140,7 +173,7 @@ def main():
     )
 
     label_pad_token_id = -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
-    data_collator = DataCollatorForSeq2Seq(
+    data_collator = DataCollatorForSeq2SeqWithDocType(
         tokenizer,
         label_pad_token_id=label_pad_token_id,
         pad_to_multiple_of=8 if training_args.fp16 else None,
