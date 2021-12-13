@@ -68,21 +68,30 @@ def main():
     load_dotenv(dotenv_path=data_args.use_auth_token_path)
     USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")
 
-    train_dataset = SumDataset(
-    data_args.dataset_name,
-    'train',
-    shuffle_seed=training_args.seed,
-    ratio=data_args.relative_sample_ratio,
-    USE_AUTH_TOKEN=USE_AUTH_TOKEN
-    ).load_data()
+    # train_dataset = SumDataset(
+    # data_args.dataset_name,
+    # 'train',
+    # shuffle_seed=training_args.seed,
+    # ratio=data_args.relative_sample_ratio,
+    # USE_AUTH_TOKEN=USE_AUTH_TOKEN
+    # ).load_data()
 
-    valid_dataset = SumDataset(
-        data_args.dataset_name,
-        'validation',
-        shuffle_seed=training_args.seed,
-        ratio=data_args.relative_sample_ratio,
-        USE_AUTH_TOKEN=USE_AUTH_TOKEN
-    ).load_data()
+    # valid_dataset = SumDataset(
+    #     data_args.dataset_name,
+    #     'validation',
+    #     shuffle_seed=training_args.seed,
+    #     ratio=data_args.relative_sample_ratio,
+    #     USE_AUTH_TOKEN=USE_AUTH_TOKEN
+    # ).load_data()
+
+    from datasets import load_dataset
+    dataset_name = "metamong1/summarization"
+    datasets = load_dataset(dataset_name + "_part" if data_args.is_part else dataset_name, USE_AUTH_TOKEN=USE_AUTH_TOKEN)
+
+    train_dataset = datasets['train']
+
+    valid_dataset = datasets['validation']
+
     
     train_dataset.cleanup_cache_files()
     valid_dataset.cleanup_cache_files()
