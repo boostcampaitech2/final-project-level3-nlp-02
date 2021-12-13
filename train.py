@@ -28,6 +28,7 @@ from args import (
 from dataloader import SumDataset
 from roberta.roberta_model import RobertaForConditionalGeneration
 from preprocessor import Filter
+from trainer import Seq2SeqTrainerWithConsineWithReStartScheduler
 
 from processor import preprocess_function
 from rouge import compute_metrics
@@ -118,18 +119,11 @@ def main():
         cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast_tokenizer
     )
-
+    iterations//2
     # setting for seq2seq trainer
     config.is_encoder_decoder = True
     config.decoder_start_token_id = tokenizer.bos_token_id
     model = RobertaForConditionalGeneration(model_args.model_name_or_path, config=config)
-
-    # model = AutoModelForSeq2SeqLM.from_pretrained(
-    #     model_args.model_name_or_path,
-    #     from_tf=bool(".ckpt" in model_args.model_name_or_path),
-    #     config=config,
-    #     cache_dir=model_args.cache_dir
-    # )
 
     prep_fn  = partial(preprocess_function, tokenizer=tokenizer, data_args=data_args)
     train_dataset = train_dataset.map(
@@ -170,7 +164,7 @@ def main():
     wandb.config.update(training_args)
     
     comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
-    trainer = Seq2SeqTrainer(
+    trainer = Seq2SeqTrainerWithConsineWithReStartScheduler(
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=valid_dataset,
@@ -180,7 +174,10 @@ def main():
         model=model,
         callbacks = [EarlyStoppingCallback(early_stopping_patience=training_args.es_patience)] if training_args.es_patience else None
     )
-
+    
+    trainer.create_optimizer_and_scheduler(num_training_steps=iterations,
+                                           num_cycles = 3,
+                                           another_scheduler_flag=True)
 
     if training_args.do_train:
         train_result = trainer.train()

@@ -6,9 +6,10 @@
 python train.py \
 --do_train \
 --output_dir model/klue_roberta \
+--overwrite_output_dir \
 --config_name klue/roberta-base --model_name_or_path klue/roberta-base \
 --dataset_name paper,news,magazine \
---num_train_epochs 3 \
+--num_train_epochs 2 \
 --learning_rate 3e-05 \
 --max_source_length 512 \
 --max_target_length 128 \
@@ -19,7 +20,7 @@ python train.py \
 --load_best_model_at_end True \
 --relative_sample_ratio 0.5 \
 --project_name baseV1.0_Kobart \
---wandb_unique_tag Roberta_ep2_lr3e05_len1024_R50
+--wandb_unique_tag Roberta_ep2_lr3e05_len1024_R50_ConsineWithWarmup
 
 ## Eval
 # ## 시도해볼 부분: num_beams
