@@ -33,13 +33,13 @@ seed = 42
 
 train_size = 5000
 eval_size = 500
-# check_point = 'encoder_decoder_pruned_last_3'#"gogamza/kobart-summarization"
-check_point = 'checkpoint-7500-finetuned-5000/checkpoint-8000'
+check_point = 'encoder_decoder_pruned_last_3'#"gogamza/kobart-summarization"
+# check_point = 'checkpoint-7500-finetuned-5000/checkpoint-8000'
 max_input_length = 512
 max_target_length = 30
 
 batch_size = 8
-num_train_epochs = 50
+num_train_epochs = 10
 learning_rate=5.6e-5
 weight_decay = 0.01
 logging_steps = 500
@@ -47,18 +47,22 @@ model_name = check_point.split("/")[-1]
 
 
 
-distillation_type = 'tiny'
+distillation_type = 'distil'  # tiny, distil
 if distillation_type:
-    student_check_point = 'encoder_decoder_pruned_last_3'
-    # student_check_point = 'checkpoint-7500-finetuned-5000/checkpoint-8000'
+    # student_check_point = 'encoder_decoder_pruned_last_3'
+    student_check_point = 'amc_/encoder_decoder_pruned_last_3-distilled-5000-ep=12/checkpoint-7500-distilled-5000-ep=13/checkpoint-8000'
     teacher_check_point = "kobart-summarization-finetuned-5000/checkpoint-1000"
     alpha=0
     temperature = 1
 
+    name = f'{student_check_point}-{distillation_type}-{num_train_epochs}'
+else:
+    name = f'{check_point}-{num_train_epochs}'
+
 wandb.init(
     entity="final_project",
     project='optimization',
-    name=f'{student_check_point}-{distillation_type}-{num_train_epochs}'
+    name=name,
 )
 
 # # Loading Dataset
@@ -204,6 +208,7 @@ else:
 
 
 if distillation_type == 'distil':
+    print('distil trainer is used!')
     trainer = DistillationTrainer(
         model=student_model,
         args=args,
@@ -215,6 +220,7 @@ if distillation_type == 'distil':
         compute_metrics=compute_metrics,
     )
 elif distillation_type == 'tiny':
+    print('tiny trainer is used!')
     trainer = TinyTrainer(
         model=student_model,
         args=args,
@@ -226,6 +232,7 @@ elif distillation_type == 'tiny':
         compute_metrics=compute_metrics,
     )
 else:
+    print('Seq2Seq trainer is used!')
     trainer = Seq2SeqTrainer(
         model=model,
         args=args,

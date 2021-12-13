@@ -3,6 +3,7 @@ data/**
 **/wandb/**
 .env
 amc_/*/**
+!amc_/*.ipynb
 args/__pycache__
 wandb/**
 model/**
