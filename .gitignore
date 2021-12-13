@@ -11,3 +11,4 @@ __pycache__
 wandb/*
 model/
 Dataloader.ipynb
+*.env
