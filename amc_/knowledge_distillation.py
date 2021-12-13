@@ -5,10 +5,11 @@ from transformers import Seq2SeqTrainingArguments
 from transformers import Trainer, Seq2SeqTrainer
 
 class DistillationTrainingArguments(Seq2SeqTrainingArguments):
-    def __init__(self, *args, alpha=0.5, temperature=2.0, **kwargs):
+    def __init__(self, *args, alpha=0.5, temperature=2.0, use_original=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.alpha = alpha
         self.temperature = temperature
+        self.use_original = use_original
 
 class DistillationTrainer(Seq2SeqTrainer):
     def __init__(self, *args, teacher_model=None, **kwargs):
@@ -65,7 +66,6 @@ class TinyTrainer(Seq2SeqTrainer):
 
         # Define loss
         MSELoss = nn.MSELoss()
-        CELoss = nn.CrossEntropyLoss()
 
         # Loss initialization
         encoder_attention_loss = 0
@@ -119,18 +119,20 @@ class TinyTrainer(Seq2SeqTrainer):
             )
 
         # Calculate prediction layer loss
-        # Commented temporalily
-        # prediction_layer_loss = -F.softmax(outputs_teacher.logits, dim=-1) * F.log_softmax(outputs_student.logits, dim=-1)
-        # prediction_layer_loss = prediction_layer_loss.mean()
+        if self.args.use_original:
+            prediction_layer_loss = -F.softmax(outputs_teacher.logits, dim=-1) * F.log_softmax(outputs_student.logits, dim=-1)
+            prediction_layer_loss = prediction_layer_loss.mean()
+        elif not self.args.use_original:
+            # Calculate prediction with KD
+            loss_fct = nn.KLDivLoss(reduction="batchmean")
+            loss_kd = self.args.temperature ** 2 * loss_fct(
+                F.log_softmax(outputs_student.logits/ self.args.temperature, dim=-1),
+                F.softmax(outputs_teacher.logits/ self.args.temperature, dim=-1)
+            )
+            prediction_layer_loss = self.args.alpha * outputs_student.loss + (1. - self.args.alpha) * loss_kd
 
-        # For Experimental purpose
-        loss_fct = nn.KLDivLoss(reduction="batchmean")
-        loss_kd = loss_fct(
-            F.log_softmax(outputs_student.logits, dim=-1),
-            F.softmax(outputs_teacher.logits, dim=-1)
-        )
-        # added for further experiment
-        loss_kd = 1 * outputs_student.loss + (1. - 1) * loss_kd
+
+
 
         loss = (encoder_attention_loss +
             decoder_attention_loss +
@@ -138,8 +140,7 @@ class TinyTrainer(Seq2SeqTrainer):
             decoder_embedding_loss +
             encoder_layer_loss +
             decoder_layer_loss +
-            loss_kd
-            # prediction_layer_loss # Commented Temporalily
+            prediction_layer_loss
         )
         
         return (loss, outputs_student) if return_outputs else loss
