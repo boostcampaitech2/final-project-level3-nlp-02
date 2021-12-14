@@ -88,7 +88,8 @@ def main():
     dataset_name = "metamong1/summarization"
     # datasets = load_dataset(dataset_name + "_part" if data_args.is_part else dataset_name, USE_AUTH_TOKEN=USE_AUTH_TOKEN)
     print("=============================================optimization dataset is being used=======================================================================")
-    datasets = load_dataset(dataset_name + "_optimization" if data_args.is_part else dataset_name, USE_AUTH_TOKEN=USE_AUTH_TOKEN)
+    # datasets = load_dataset(dataset_name + "_part" if data_args.is_part else dataset_name, use_auth_token=USE_AUTH_TOKEN)
+    datasets = load_dataset(dataset_name + "_optimization" if data_args.is_part else dataset_name, use_auth_token=USE_AUTH_TOKEN)
     print("=============================================optimization dataset is being used=======================================================================")
 
     train_dataset = datasets['train']

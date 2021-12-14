@@ -6,6 +6,7 @@ amc_/*/**
 args/__pycache__
 wandb/**
 model/**
+model1/**
 evaluation/**
 
 *.env
