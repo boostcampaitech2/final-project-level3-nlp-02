@@ -91,7 +91,7 @@ def main():
     if data_args.relative_eval_steps :
         ## Train 동안 relative_eval_steps count 회수 만큼 evaluation 
         ## 전체 iteration에서 eval 횟수로 나누어 evaluation step
-        iter_by_epoch = math.ceil(len(train_dataset)/training_args.per_device_train_batch_size)
+        iter_by_epoch = math.ceil(len(train_dataset)/(training_args.per_device_train_batch_size*training_args.gradient_accumulation_steps))
         iterations =  iter_by_epoch * training_args.num_train_epochs
         training_args.eval_steps = int(iterations // data_args.relative_eval_steps)
         training_args.save_steps = training_args.eval_steps ## save step은 eval step의 배수여야 함
