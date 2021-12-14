@@ -30,6 +30,7 @@ from args import (
 from data_collator import DataCollatorForSeq2SeqWithDocType
 from processor import preprocess_function
 from rouge import compute_metrics
+from preprocessor import Filter
 
 from models.modeling_kobigbird_bart import (
     EncoderDecoderModel, 
@@ -96,6 +97,10 @@ def main():
         training_args.eval_steps = int(iterations // data_args.relative_eval_steps)
         training_args.save_steps = training_args.eval_steps ## save step은 eval step의 배수여야 함
 
+    data_filter = Filter(min_size=5, max_size=80)
+    train_dataset = train_dataset.filter(data_filter)
+    valid_dataset = valid_dataset.filter(data_filter)
+
     print(f"train_dataset length: {len(train_dataset)}")
     print(f"valid_dataset length: {len(valid_dataset)}")
     print(f"eval_steps: {training_args.eval_steps}")
@@ -128,7 +133,7 @@ def main():
         cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast_tokenizer
     )
-    
+
     def model_init():
         # https://discuss.huggingface.co/t/fixing-the-random-seed-in-the-trainer-does-not-produce-the-same-results-across-runs/3442
         # Producibility parameter initialization
@@ -201,7 +206,6 @@ def main():
         model_init=model_init, ## model 성능 재현
         callbacks = [EarlyStoppingCallback(early_stopping_patience=training_args.es_patience)] if training_args.es_patience else None
     )
-
 
     if training_args.do_train:
         train_result = trainer.train()
