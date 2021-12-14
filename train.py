@@ -1,22 +1,21 @@
-import os
-import importlib.util
-import random
-import math
 from dotenv import load_dotenv
-
-import numpy as np
-import torch
-import torch.nn as nn
 import wandb
 
+import os
+import math
+import random
+import numpy as np
+
+import torch
+import torch.nn as nn
+
 from functools import partial
+from datasets import load_dataset
 from transformers import (
     AutoTokenizer,
     AutoConfig,
     AutoModelForSeq2SeqLM,
     HfArgumentParser,
-    DataCollatorForSeq2Seq,
-    Seq2SeqTrainer,
     EarlyStoppingCallback
 )
 
@@ -27,15 +26,24 @@ from args import (
     CustomSeq2SeqTrainingArguments
 )
 
-from dataloader import SumDataset
 from processor import preprocess_function
 from rouge import compute_metrics
 
-from trainer import Seq2SeqTrainerWithDocType
-
-from models.modeling_longformerbart import LongformerBartConfig, LongformerBartWithDoctypeForConditionalGeneration
-from models.rebuilding_longformerbart import make_model_for_changing_postion_embedding
+from trainer import Seq2SeqTrainerWithConditionalDocType
 from data_collator import DataCollatorForSeq2SeqWithDocType
+from processor import preprocess_function
+from rouge import compute_metrics
+
+from models.rebuilding_longformerbart import make_model_for_changing_postion_embedding
+from models.modeling_longformerbart import LongformerBartConfig, LongformerBartWithDoctypeForConditionalGeneration
+from models.modeling_kobigbird_bart import (
+    EncoderDecoderModel, 
+    BigBirdConfigWithDoctype, 
+    BartConfigWithDoctype, 
+    BigBirdModelWithDoctype, 
+    BartDecoderWithDoctype
+)
+
 
 def seed_everything(seed):
     torch.manual_seed(seed)
@@ -45,6 +53,8 @@ def seed_everything(seed):
     torch.backends.cudnn.benchmark = False
     np.random.seed(seed)
     random.seed(seed)
+
+
     
 def main():
     ## Arguments setting
@@ -52,7 +62,7 @@ def main():
         (ModelArguments, DataTrainingArguments, LoggingArguments, CustomSeq2SeqTrainingArguments)
     )
     model_args, data_args, log_args, training_args = parser.parse_args_into_dataclasses()
-    training_args.model_path = f"{model_args.longformerbart_path}_{data_args.max_source_length}_{data_args.max_target_length}"
+    
     
     seed_everything(training_args.seed)
     if training_args.do_eval :
@@ -67,36 +77,31 @@ def main():
             f"Output directory ({training_args.output_dir}) already exists and is not empty. "
             "Use --overwrite_output_dir to overcome."
         )
-    
+
     ## load and process dataset
     types = data_args.dataset_name.split(',')
     data_args.dataset_name = ['metamong1/summarization_' + dt for dt in types]
     
     load_dotenv(dotenv_path=data_args.use_auth_token_path)
-    USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")
-
-    train_dataset = SumDataset(
-        data_args.dataset_name,
-        'train',
-        shuffle_seed=training_args.seed,
-        ratio=data_args.relative_sample_ratio,
-        USE_AUTH_TOKEN=USE_AUTH_TOKEN
-    ).load_data()
-
-    valid_dataset = SumDataset(
-        data_args.dataset_name,
-        'validation',
-        shuffle_seed=training_args.seed,
-        ratio=data_args.relative_sample_ratio,
-        USE_AUTH_TOKEN=USE_AUTH_TOKEN
-    ).load_data()
+    USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")    
     
+    dataset_name = "metamong1/summarization"
+    datasets = load_dataset(dataset_name + "_part" if data_args.is_part else dataset_name, use_auth_token=USE_AUTH_TOKEN)
+    train_dataset = datasets['train']
+    valid_dataset = datasets['validation']
+
+    if data_args.num_samples:
+        train_dataset = train_dataset.select(range(data_args.num_samples))
+        valid_dataset = valid_dataset.select(range(data_args.num_samples))
+
     train_dataset.cleanup_cache_files()
     valid_dataset.cleanup_cache_files()
 
     train_dataset = train_dataset.shuffle(training_args.seed)
     valid_dataset = valid_dataset.shuffle(training_args.seed)
-    print('** Dataset example', train_dataset[0]['title'], train_dataset[0]['title'], sep = '\n')
+    print('** Dataset example')
+    print(f"[for Train Dataset] : {train_dataset[0]['title']}")
+    print(f"[for Valid Dataset] : {valid_dataset[0]['title']}")
 
     column_names = train_dataset.column_names
     if data_args.relative_eval_steps :
@@ -111,15 +116,45 @@ def main():
     print(f"valid_dataset length: {len(valid_dataset)}")
     print(f"eval_steps: {training_args.eval_steps}")
 
-    config = LongformerBartConfig.from_pretrained(
-            model_args.config_name if model_args.config_name else model_args.model_name_or_path)
     
-    if not os.path.exists(training_args.model_path):
-        make_model_for_changing_postion_embedding(config,data_args,model_args)
+    #model별 config 호출
+    if model_args.use_model == "longbart":
+        config = LongformerBartConfig.from_pretrained(
+                model_args.config_name if model_args.config_name else model_args.model_name_or_path)
+        
+        if not os.path.exists(training_args.model_path):
+            make_model_for_changing_postion_embedding(config,data_args,model_args)
 
-    config.max_position_embeddings = data_args.max_source_length
-    config.max_target_positions = data_args.max_target_length
-    config.attention_window_size = model_args.attention_window_size ## for longformer
+        config.encoder_layers = model_args.encoder_layer_size
+        config.decoder_layers = model_args.decoder_layer_size
+        config.d_model = model_args.hidden_size
+        config.encoder_attention_heads = model_args.attention_head_size
+        config.decoder_attention_heads = model_args.attention_head_size
+        config.max_position_embeddings = data_args.max_source_length
+        config.max_target_positions = data_args.max_target_length
+        config.attention_window = [model_args.attention_window_size]*model_args.encoder_layer_size
+        config.attention_dropout = model_args.dropout
+        config.dropout = model_args.dropout
+    
+    elif model_args.use_model=="bigbart":
+        config = {}
+        config["encoder"] = BigBirdConfigWithDoctype.from_pretrained("monologg/kobigbird-bert-base")
+        config["decoder"] = BartConfigWithDoctype.from_pretrained("gogamza/kobart-base-v1")
+        
+
+        config["encoder"].encoder_layers = 6
+        config["decoder"].vocab_size = config["encoder"].vocab_size
+        config["decoder"].pad_token_id = config["encoder"].pad_token_id
+        config["decoder"].max_position_embeddings = data_args.max_target_length
+        
+        if data_args.use_doc_type_ids :
+            config["encoder"].doc_type_size = 3
+            config["decoder"].doc_type_size = 3
+    else :
+        config = AutoConfig.from_pretrained(
+            model_args.config_name if model_args.config_name else model_args.model_name_or_path,
+            cache_dir=model_args.cache_dir
+        )
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
@@ -127,12 +162,25 @@ def main():
         use_fast=model_args.use_fast_tokenizer
     )
 
-    def model_init(training_args):
-        # https://discuss.huggingface.co/t/fixing-the-random-seed-in-the-trainer-does-not-produce-the-same-results-across-runs/3442
-        # Producibility parameter initialization
-        model = LongformerBartWithDoctypeForConditionalGeneration.from_pretrained(training_args.model_path, training_args.num_training_steps)
-        return model
-        
+
+    def model_init():
+        if model_args.use_model == "longbart":
+            return LongformerBartWithDoctypeForConditionalGeneration.from_pretrained(model_args.model_name_or_path, training_args.num_training_steps)
+        elif model_args.use_model == "bigbart":
+            # https://discuss.huggingface.co/t/fixing-the-random-seed-in-the-trainer-does-not-produce-the-same-results-across-runs/3442
+            # Producibility parameter initialization
+            encoder = BigBirdModelWithDoctype.from_pretrained("monologg/kobigbird-bert-base",config=config["encoder"])
+            decoder = BartDecoderWithDoctype.from_pretrained("gogamza/kobart-base-v1", config=config["decoder"])
+            encoder.encoder.layer = [encoder.encoder.layer[i] for i in range(0,12,2)]
+            decoder.embed_tokens = encoder.embeddings.word_embeddings
+            return EncoderDecoderModel(encoder = encoder, decoder = decoder)     
+        else :
+            return AutoModelForSeq2SeqLM.from_pretrained(
+                model_args.model_name_or_path,
+                from_tf=bool(".ckpt" in model_args.model_name_or_path),
+                config=config
+            )
+    
     prep_fn  = partial(preprocess_function, tokenizer=tokenizer, data_args=data_args)
     train_dataset = train_dataset.map(
         prep_fn,
@@ -152,10 +200,13 @@ def main():
         desc="Running tokenizer on validation dataset",
     )
     label_pad_token_id = -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
-    data_collator = DataCollatorForSeq2Seq(
+    pad_to_multiple_of = model_args.attention_window_size if model_args.use_model=="longbart" else (
+        8 if training_args.fp16 else None
+    )
+    data_collator = DataCollatorForSeq2SeqWithDocType(
         tokenizer,
         label_pad_token_id=label_pad_token_id,
-        pad_to_multiple_of=8 if training_args.fp16 else None,
+        pad_to_multiple_of=pad_to_multiple_of
     )
 
     # wandb
@@ -172,7 +223,7 @@ def main():
     
     comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
     
-    trainer = Seq2SeqTrainerWithDocType(
+    trainer = Seq2SeqTrainerWithConditionalDocType(
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=valid_dataset,
@@ -182,6 +233,7 @@ def main():
         model_init=model_init, ## model 성능 재현
         callbacks = [EarlyStoppingCallback(early_stopping_patience=training_args.es_patience)] if training_args.es_patience else None
     )
+
 
     if training_args.do_train:
         train_result = trainer.train()

@@ -13,8 +13,6 @@ def preprocess_function(examples:datasets,
                         tokenizer:PreTrainedTokenizer,
                         data_args) -> datasets:
                         
-    prefix = tokenizer.bos_token
-    eos_token_id = tokenizer.eos_token_id
     pad_token_id = tokenizer.pad_token_id
     max_source_length = data_args.max_source_length
     max_target_length = data_args.max_target_length
@@ -30,26 +28,20 @@ def preprocess_function(examples:datasets,
     # padding in the loss.
     inputs_padding_bool = (padding == "max_length")
     doc_type_ids = []
-    if inputs_padding_bool:
-        for i in range(len(model_inputs['input_ids'])) :
+    for i in range(len(model_inputs['input_ids'])) :
+        if inputs_padding_bool:
             model_inputs["attention_mask"][i] = add_padding(sample_tokens=model_inputs["attention_mask"][i],
                                                             padding=inputs_padding_bool,
                                                             padding_num= pad_token_id,
-                                                            max_length=max_target_length,
-                                                            eos_token_id=1) 
+                                                            max_length=max_target_length) 
             model_inputs["input_ids"][i] = add_padding(sample_tokens=model_inputs["input_ids"][i],
                                                             padding=inputs_padding_bool,
                                                             padding_num= pad_token_id,
-                                                            max_length=max_target_length,
-                                                            eos_token_id=eos_token_id)
-            
-            doc_type_id_list = get_doc_type_ids(model_inputs["attention_mask"][i], doc_type_dict[doc_types[i]])
-            doc_type_ids.append(doc_type_id_list)
-    else:
-        for i in range(len(model_inputs['input_ids'])) :
-            doc_type_id_list = get_doc_type_ids(model_inputs["attention_mask"][i], doc_type_dict[doc_types[i]])
-            doc_type_ids.append(doc_type_id_list)
-    
+                                                            max_length=max_target_length)
+        
+        doc_type_id_list = get_doc_type_ids(model_inputs["attention_mask"][i], doc_type_dict[doc_types[i]])
+        doc_type_ids.append(doc_type_id_list)
+
     if not data_args.is_pretrain:
         # Setup the tokenizer for targets
         with tokenizer.as_target_tokenizer():
@@ -63,7 +55,6 @@ def preprocess_function(examples:datasets,
                         padding=title_padding_bool,
                         padding_num=-100,
                         max_length=max_target_length,
-                        eos_token_id=eos_token_id
                         ) for label in labels["input_ids"]
                 ]
         model_inputs["labels"] = labels["input_ids"]

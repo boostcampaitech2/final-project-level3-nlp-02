@@ -78,3 +78,13 @@ class ModelArguments :
             "help":"dropout ratio"
         },
     )
+    use_kobigbird_bart: bool = field(
+        default=False,
+        metadata={"help": "use kobigbird encoder and bart decoder"},
+    )
+
+    use_model: str = field(
+        default='auto',
+        metadata={"help": "model type(pretrained model from huggingface, customized bigbart, customized longbart), [auto, bigbart, longbart]"},
+    )
+    

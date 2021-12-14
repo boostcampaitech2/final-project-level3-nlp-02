@@ -22,12 +22,12 @@ if version.parse(torch.__version__) >= version.parse("1.6"):
     from torch.cuda.amp import autocast
 
 
-class Seq2SeqTrainerWithDocType(Seq2SeqTrainer):
+class Seq2SeqTrainerWithConditionalDocType(Seq2SeqTrainer):
     """
     original Trainer source code: https://github.com/huggingface/transformers/blob/master/src/transformers/trainer.py
     """
     def __init__(self, **kwargs):
-        super(Seq2SeqTrainerWithDocType, self).__init__(**kwargs)
+        super(Seq2SeqTrainerWithConditionalDocType, self).__init__(**kwargs)
         
     def prediction_step(
         self,
@@ -51,13 +51,25 @@ class Seq2SeqTrainerWithDocType(Seq2SeqTrainer):
             "num_beams": self._num_beams if self._num_beams is not None else self.model.config.num_beams,
             "synced_gpus": True if is_deepspeed_zero3_enabled() else False,
         }
-
+        
         generated_tokens = self.model.generate(
-            inputs["input_ids"],
-            attention_mask=inputs["attention_mask"],
-            doc_type_ids=inputs["doc_type_ids"],
-            **gen_kwargs,
+            **inputs, **gen_kwargs
         )
+        # if "doc_type_ids" in inputs.keys():
+        #     generated_tokens = self.model.generate(
+        #         inputs["input_ids"],
+        #         attention_mask=inputs["attention_mask"],
+        #         doc_type_ids=inputs["doc_type_ids"],
+        #         **gen_kwargs,
+        #     )
+        # else:
+        #     generated_tokens = self.model.generate(
+        #         inputs["input_ids"],
+        #         attention_mask=inputs["attention_mask"],
+        #         **gen_kwargs,
+        #     )
+
+
         # in case the batch is shorter than max length, the output should be padded
         if generated_tokens.shape[-1] < gen_kwargs["max_length"]:
             generated_tokens = self._pad_tensors_to_max_len(generated_tokens, gen_kwargs["max_length"])
@@ -84,18 +96,6 @@ class Seq2SeqTrainerWithDocType(Seq2SeqTrainer):
             labels = self._pad_tensors_to_max_len(labels, gen_kwargs["max_length"])
 
         return (loss, generated_tokens, labels)
-
-    def call_model_init(self, trial=None):
-        model_init_argcount = number_of_arguments(self.model_init)
-        if model_init_argcount == 1:
-            model = self.model_init(self.args)
-        elif model_init_argcount == 2:
-            model = self.model_init(self.args, trial)
-        else:
-            raise RuntimeError("model_init should have 0 or 1 argument.")
-        if model is None:
-            raise RuntimeError("model_init should not return None.")
-        return model
     
     def create_optimizer_and_scheduler(self, num_training_steps: int):
         self.create_optimizer()

@@ -64,13 +64,6 @@ def main():
     print(f"** model is from {model_args.model_name_or_path}")
     print(f'** max_target_length:', data_args.max_target_length)
 
-
-    # if os.path.isdir(training_args.output_dir) and training_args.do_train and not training_args.overwrite_output_dir:
-    #     raise ValueError(
-    #         f"Output directory ({training_args.output_dir}) already exists and is not empty. "
-    #         "Use --overwrite_output_dir to overcome."
-    #     )
-
     ## load and process dataset
     load_dotenv(dotenv_path=data_args.use_auth_token_path)
     USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")
@@ -130,19 +123,13 @@ def main():
     )
 
     label_pad_token_id = -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
-    if data_args.is_pretrain:
-        data_collator = DataCollatorForTextInfillingDocType(
-            tokenizer,
-            label_pad_token_id=label_pad_token_id,
-            pad_to_multiple_of=model_args.attention_window_size,
-        )
-    else:    
-        data_collator = DataCollatorForSeq2SeqWithDocType(
-            tokenizer,
-            label_pad_token_id=label_pad_token_id,
-            pad_to_multiple_of=model_args.attention_window_size,
-        )
-    
+
+    data_collator = DataCollatorForTextInfillingDocType(
+        tokenizer,
+        label_pad_token_id=label_pad_token_id,
+        pad_to_multiple_of=model_args.attention_window_size,
+    )
+
     # wandb
     load_dotenv(dotenv_path=log_args.dotenv_path)
     WANDB_AUTH_KEY = os.getenv("WANDB_AUTH_KEY")

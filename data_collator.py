@@ -8,6 +8,7 @@ from transformers.tokenization_utils import PreTrainedTokenizerBase, BatchEncodi
 
 class DataCollatorForSeq2SeqWithDocType(DataCollatorForSeq2Seq):
     def __call__(self, features, return_tensors=None):
+        import numpy as np
 
         if return_tensors is None:
             return_tensors = self.return_tensors
@@ -214,3 +215,4 @@ class DataCollatorForTextInfillingDocType:
             else:
                 result[i, -example.shape[0] :] = example
         return result
+        
