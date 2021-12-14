@@ -103,8 +103,8 @@ def main():
         ## Train 동안 relative_eval_steps count 회수 만큼 evaluation 
         ## 전체 iteration에서 eval 횟수로 나누어 evaluation step
         iter_by_epoch = math.ceil(len(train_dataset)/training_args.per_device_train_batch_size)
-        iterations =  iter_by_epoch * training_args.num_train_epochs
-        training_args.eval_steps = int(iterations // data_args.relative_eval_steps)
+        training_args.num_training_steps =  iter_by_epoch * training_args.num_train_epochs
+        training_args.eval_steps = int(training_args.num_training_steps // data_args.relative_eval_steps)
         training_args.save_steps = training_args.eval_steps ## save step은 eval step의 배수여야 함
 
     print(f"train_dataset length: {len(train_dataset)}")
@@ -117,10 +117,10 @@ def main():
     if not os.path.exists(training_args.model_path):
         make_model_for_changing_postion_embedding(config,data_args,model_args)
 
-    config.max_position_embeddings = data_args.max_source_length+2
-    config.max_target_positions = data_args.max_target_length+2
-    config.attention_window_size = model_args.attention_window_size
-    
+    config.max_position_embeddings = data_args.max_source_length
+    config.max_target_positions = data_args.max_target_length
+    config.attention_window_size = model_args.attention_window_size ## for longformer
+
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
@@ -130,7 +130,7 @@ def main():
     def model_init(training_args):
         # https://discuss.huggingface.co/t/fixing-the-random-seed-in-the-trainer-does-not-produce-the-same-results-across-runs/3442
         # Producibility parameter initialization
-        model = LongformerBartWithDoctypeForConditionalGeneration.from_pretrained(training_args.model_path)
+        model = LongformerBartWithDoctypeForConditionalGeneration.from_pretrained(training_args.model_path, training_args.num_training_steps)
         return model
         
     prep_fn  = partial(preprocess_function, tokenizer=tokenizer, data_args=data_args)

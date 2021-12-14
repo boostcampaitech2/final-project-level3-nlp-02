@@ -405,21 +405,44 @@ class CustomBartDecoder(BartDecoder):
         self.init_weights()
         self.gradient_checkpointing = False
 
-
-class LongformerBartModel(BartModel):
-    def __init__(self, config: LongformerBartConfig):
+class LongformerBartWithDoctypeForConditionalGeneration(BartForConditionalGeneration):
+    def __init__(self,
+                 config: LongformerBartConfig,
+                 num_training_steps:int):
         super().__init__(config)
-        embed_dim = config.d_model
+
+        padding_idx, vocab_size = config.pad_token_id, config.vocab_size
+        self.shared = nn.Embedding(vocab_size, config.d_model, padding_idx)
+        
         self.padding_idx = config.pad_token_id
-        self.doc_type_shared = nn.Embedding(config.doc_type_size, embed_dim, 0)
+        self.doc_type_shared = nn.Embedding(config.doc_type_size, config.d_model, 0)
         self.encoder = LongformerBartEncoderWithDocType(config, self.shared, self.doc_type_shared)
         self.decoder = CustomBartDecoder(config, self.shared)
+        self.lm_head = nn.Linear(config.d_model, self.shared.num_embeddings, bias=False)
+
+        self.num_training_steps = num_training_steps
+        self.cur_training_steps = 0
+
+    def get_input_embeddings(self):
+        return self.shared
+
+    def get_encoder(self):
+        return self.encoder
+
+    def get_decoder(self):
+        return self.decoder
+
+    def get_output_embeddings(self):
+        return self.lm_head
+
+    def set_output_embeddings(self, new_embeddings):
+        self.lm_head = new_embeddings
 
     def forward(
         self,
-        input_ids=None,
+        input_ids=None, 
         attention_mask=None,
-        decoder_input_ids=None,
+        decoder_input_ids=None, 
         decoder_attention_mask=None,
         doc_type_ids=None,
         head_mask=None,
@@ -429,18 +452,23 @@ class LongformerBartModel(BartModel):
         past_key_values=None,
         inputs_embeds=None,
         decoder_inputs_embeds=None,
+        labels=None,
         use_cache=None,
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
     ):
 
-        # different to other models, Bart automatically creates decoder_input_ids from
-        # input_ids if no decoder_input_ids are provided
-        if decoder_input_ids is None and decoder_inputs_embeds is None:
-            decoder_input_ids = shift_tokens_right(
-                input_ids, self.config.pad_token_id, self.config.decoder_start_token_id
-            )
+        # Scheduled Sampling, Teacher Forcing ratio
+        self.cur_training_steps += 1
+        teacher_training_ratio = (self.num_training_steps - self.cur_training_steps) / self.num_training_steps
+        use_outputs_ratio = np.random.rand()
+
+        if labels is not None:
+            if decoder_input_ids is None:
+                decoder_input_ids = shift_tokens_right(
+                    labels, self.config.pad_token_id, self.config.decoder_start_token_id
+                )
 
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
@@ -469,9 +497,38 @@ class LongformerBartModel(BartModel):
                 attentions_global=encoder_outputs[3] if len(encoder_outputs) > 3 else None,
             )
 
+        # 1-stage decoder
+        if use_outputs_ratio < teacher_training_ratio:
+            self.decoder.eval()
+            decoder_outputs = self.decoder(
+                input_ids=decoder_input_ids,                    
+                attention_mask=decoder_attention_mask,          
+                encoder_hidden_states=encoder_outputs[0],
+                encoder_attention_mask=attention_mask,
+                head_mask=decoder_head_mask,
+                cross_attn_head_mask=cross_attn_head_mask,
+                past_key_values=past_key_values,
+                inputs_embeds=decoder_inputs_embeds,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
+
+            decoder_hidden_states = decoder_outputs[0] # (batch_size, seq_size, hidden_size) 
+            lm_logits = self.lm_head(decoder_hidden_states) + self.final_logits_bias # (batch_size, seq_size, vocab_size)
+            prediction_output_ids = torch.softmax(lm_logits, dim=-1) # (batch_size, seq_size)
+            is_teacher_forcing = torch.bernoulli(decoder_input_ids).bool()
+            decoder_input_ids[~is_teacher_forcing] = prediction_output_ids[~is_teacher_forcing] 
+            del lm_logits
+            del prediction_output_ids
+            del decoder_hidden_states
+
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
+        # 2-stage decoder
+        self.decoder.train()   
         decoder_outputs = self.decoder(
-            input_ids=decoder_input_ids,                    
+            input_ids=decoder_input_ids, # prediction output id & decoder input id 와 섞은 id가 들어가야 함             
             attention_mask=decoder_attention_mask,          
             encoder_hidden_states=encoder_outputs[0],
             encoder_attention_mask=attention_mask,
@@ -484,83 +541,9 @@ class LongformerBartModel(BartModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
-
-        if not return_dict:
-            return decoder_outputs + encoder_outputs
-
-        return LongformerBartSeq2SeqModelOutput(
-            last_hidden_state=decoder_outputs.last_hidden_state,
-            past_key_values=decoder_outputs.past_key_values,
-            decoder_hidden_states=decoder_outputs.hidden_states,
-            decoder_attentions=decoder_outputs.attentions,
-            cross_attentions=decoder_outputs.cross_attentions,
-            encoder_last_hidden_state=encoder_outputs.last_hidden_state,
-            encoder_hidden_states=encoder_outputs.hidden_states,
-            encoder_attentions_local=encoder_outputs.attentions_local,
-            encoder_attentions_global=encoder_outputs.attentions_global,
-        )
-
-class LongformerBartWithDoctypeForConditionalGeneration(BartForConditionalGeneration):
-    def __init__(self, config: LongformerBartConfig):
-        super().__init__(config)
-        self.model = LongformerBartModel(config)
-
-    def forward(
-        self,
-        input_ids=None,
-        attention_mask=None,
-        decoder_input_ids=None,
-        decoder_attention_mask=None,
-        doc_type_ids=None,
-        head_mask=None,
-        decoder_head_mask=None,
-        cross_attn_head_mask=None,
-        encoder_outputs=None,
-        past_key_values=None,
-        inputs_embeds=None,
-        decoder_inputs_embeds=None,
-        labels=None,
-        use_cache=None,
-        output_attentions=None,
-        output_hidden_states=None,
-        return_dict=None,
-    ):
-        r"""
-        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, sequence_length)`, `optional`):
-            Labels for computing the masked language modeling loss. Indices should either be in ``[0, ...,
-            config.vocab_size]`` or -100 (see ``input_ids`` docstring). Tokens with indices set to ``-100`` are ignored
-            (masked), the loss is only computed for the tokens with labels in ``[0, ..., config.vocab_size]``.
-
-        Returns:
-        """
-
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
-        if labels is not None:
-            if decoder_input_ids is None:
-                decoder_input_ids = shift_tokens_right(
-                    labels, self.config.pad_token_id, self.config.decoder_start_token_id
-                )
-
-        outputs = self.model(
-            input_ids,
-            attention_mask=attention_mask,
-            decoder_input_ids=decoder_input_ids,
-            doc_type_ids=doc_type_ids,
-            encoder_outputs=encoder_outputs,
-            decoder_attention_mask=decoder_attention_mask,
-            head_mask=head_mask,
-            decoder_head_mask=decoder_head_mask,
-            cross_attn_head_mask=cross_attn_head_mask,
-            past_key_values=past_key_values,
-            inputs_embeds=inputs_embeds,
-            decoder_inputs_embeds=decoder_inputs_embeds,
-            use_cache=use_cache,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
-        lm_logits = self.lm_head(outputs[0]) + self.final_logits_bias
+        
+        decoder_hidden_states = decoder_outputs[0] # (batch_size, seq_size, hidden_size) 
+        lm_logits = self.lm_head(decoder_hidden_states) + self.final_logits_bias # (batch_size, seq_size, vocab_size)
 
         masked_lm_loss = None
         if labels is not None:
@@ -568,19 +551,20 @@ class LongformerBartWithDoctypeForConditionalGeneration(BartForConditionalGenera
             masked_lm_loss = loss_fct(lm_logits.view(-1, self.config.vocab_size), labels.view(-1))
 
         if not return_dict:
-            output = (lm_logits,) + outputs[1:]
+            output = (lm_logits,) + decoder_outputs + encoder_outputs
             return ((masked_lm_loss,) + output) if masked_lm_loss is not None else output
 
         return Seq2SeqLMOutput(
             loss=masked_lm_loss,
             logits=lm_logits,
-            past_key_values=outputs.past_key_values,
-            decoder_hidden_states=outputs.decoder_hidden_states,
-            decoder_attentions=outputs.decoder_attentions,
-            cross_attentions=outputs.cross_attentions,
-            encoder_last_hidden_state=outputs.encoder_last_hidden_state,
-            encoder_hidden_states=outputs.encoder_hidden_states,
-            encoder_attentions=outputs.encoder_attentions_local, # 수정 필요?
+            past_key_values=decoder_outputs.past_key_values,
+            decoder_hidden_states=decoder_outputs.decoder_hidden_states,
+            decoder_attentions=decoder_outputs.decoder_attentions,
+            cross_attentions=decoder_outputs.cross_attentions,
+            encoder_last_hidden_state=decoder_outputs.encoder_last_hidden_state,
+            encoder_hidden_states=decoder_outputs.encoder_hidden_states,
+            encoder_attentions_local=decoder_outputs.encoder_attentions_local,
+            encoder_attentions_global=decoder_outputs.attentions_global
         )
 
     def prepare_inputs_for_generation(
@@ -597,11 +581,6 @@ class LongformerBartWithDoctypeForConditionalGeneration(BartForConditionalGenera
         encoder_outputs=None,
         **kwargs
     ):
-    
-        # decoder input ids -> decoder attention mask 를 생성해야 한다.
-        batch_size, seq_size = decoder_input_ids.shape
-        device = decoder_input_ids.device
-        decoder_attention_mask = torch.ones((batch_size,seq_size)).to(device) # (pad_token_id)
 
         if past is not None:
             decoder_input_ids = decoder_input_ids[:,-1:]
