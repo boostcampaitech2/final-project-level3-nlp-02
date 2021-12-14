@@ -107,3 +107,15 @@ class DataTrainingArguments:
             "help": "Calculate the evaluation step relative to the size of the data set."
         },
     )
+    num_samples: int = field(
+        default=None,
+        metadata={
+            "help": "Set number of data sampling" 
+        },
+    )
+    is_part: bool = field(
+        default=False,
+        metadata={
+            "help": "whether to ba a part of datasets (default=False)"
+        },
+    )

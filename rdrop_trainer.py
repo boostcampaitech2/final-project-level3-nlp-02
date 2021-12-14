@@ -36,7 +36,7 @@ class RdropTrainer(Seq2SeqTrainer):
             return F.softmax(logits, dim=-1)
 
     def training_step(self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> torch.Tensor:
-        """
+        """[]
         Perform a training step on a batch of inputs.
         Subclass and override to inject custom behavior.
         Args:
@@ -55,7 +55,7 @@ class RdropTrainer(Seq2SeqTrainer):
         concat_inputs = {
             'input_ids': torch.cat([inputs['input_ids'], inputs['input_ids'].clone()], 0),
             'attention_mask': torch.cat([inputs['attention_mask'], inputs['attention_mask'].clone()], 0),
-            'labels': torch.cat([inputs['labels'], inputs['labels'].clone()], 0),
+            'labels': inputs['labels'],
             'decoder_input_ids': torch.cat([inputs['decoder_input_ids'], inputs['decoder_input_ids'].clone()], 0),
         } # 두 번 forward 하기 힘드니까 concate해서 한 번에 feed 하고 잘라주는 형식입니다.
 
@@ -67,6 +67,7 @@ class RdropTrainer(Seq2SeqTrainer):
                 with autocast():
                     loss = self.compute_loss(model, concat_inputs)
         else:
+            # print("Now here!")
             loss = self.compute_loss(model, concat_inputs)
 
         if self.args.n_gpu > 1:
@@ -100,11 +101,11 @@ class RdropTrainer(Seq2SeqTrainer):
         if self.label_smoother is not None and "labels" in inputs:
             labels = inputs.pop("labels")
             pad_mask = labels.unsqueeze(-1).eq(self.label_smoother.ignore_index)
-            # labels = torch.cat([labels, labels.clone()], 0) # for r-drop
+            labels = torch.cat([labels, labels.clone()], 0) # for r-drop
         else:
             labels = None
         outputs = model(**inputs)
-
+        
         # Save past state if it exists
         # TODO: this needs to be fixed and made cleaner later.
         if self.args.past_index >= 0:
@@ -114,7 +115,8 @@ class RdropTrainer(Seq2SeqTrainer):
             # loss = self.label_smoother(outputs, labels)
             loss = self.label_smoothed_nll_loss(outputs, labels, 0.1)
             kl_loss = self.compute_kl_loss(outputs, pad_mask)
-            loss += 0.7 * kl_loss # 0.7 == reg_alpha
+            # print(f"[ce_loss]: {loss:.3f}   [kl_loss]: {kl_loss:.3f}")
+            loss += 1.0 * kl_loss # 0.7 == reg_alpha
         else:
             # We don't use .loss here since the model may return tuples instead of ModelOutput.
             loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]

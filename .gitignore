@@ -8,3 +8,4 @@ evaluation/**
 *.ipynb
 
 exp*
+viz_requirement.sh
