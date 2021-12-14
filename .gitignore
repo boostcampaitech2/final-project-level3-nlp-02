@@ -3,3 +3,9 @@ args/__pycache__
 wandb/**
 model/**
 evaluation/**
+__pycache**
+
+*.env
+*.ipynb
+
+modeling_bart.py
