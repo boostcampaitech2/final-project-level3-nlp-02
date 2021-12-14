@@ -6,8 +6,11 @@ from operator import itemgetter
 from typing import List, Dict, Tuple
 from typing import Sequence
 
+import os
+from kss.kss import _split_sentences_index
 import numpy as np
 import torch
+import kss
 from bert_score import BERTScorer
 from nltk import PorterStemmer
 from spacy.tokens import Doc, Span
@@ -15,6 +18,7 @@ from toolz import itertoolz
 from transformers import AutoTokenizer
 from transformers.tokenization_utils_base import PaddingStrategy
 
+os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 class EmbeddingModel(ABC):
     @abstractmethod
@@ -182,11 +186,14 @@ class NGramAligner():
 
         alignments = []
         source_ngram_spans = self._get_ngram_spans(source)
-        for target in targets:
+        # print("source_ngram_spans: ", source_ngram_spans)
+        for target in targets[0]:
             target_ngram_spans = self._get_ngram_spans(target)
+            # print(target_ngram_spans)
             alignments.append(
                 self._align_ngrams(target_ngram_spans, source_ngram_spans)
             )
+        print("alignments: ", alignments)
         return alignments
 
     def _get_ngram_spans(
@@ -194,21 +201,75 @@ class NGramAligner():
         doc: Doc,
     ):
         ngrams = []
-        for sent in doc.sents:
-            for n in range(1, len(list(sent))):
-                tokens = [t for t in sent if not (t.is_stop or t.is_punct)]
+        indices = []
+        sent_id_list = []
+        sent_len_list = []
+        ngram_num_list = []
+        sentences = kss.split_sentences(doc)
+        for sent_id, sent in enumerate(sentences): # doc.sents -> 문장들을 문장으로 만들어주는 generator
+            # for n in range(1, len(list(sent))):
+            sent_len_list.append(len(sent.split()))
+            for n in range(1, len(sent.split())):
+                ## TODO: is_stop & is_punct 구현하기
+                tokens = [t for t in sent.split()] #if not (t.is_stop or t.is_punct)]
+                # print("tokens: ", tokens) # -> ['헝다', '계열사인', '징청은', ~ ]
+                # i, ngrams_result = _ngrams(tokens, n)
                 ngrams.extend(_ngrams(tokens, n))
+                # print(ngrams)
+                # indices.extend(i)
+            ngram_num_list.append(len(ngrams))
+            if sent_id:
+                for k in range(ngram_num_list[sent_id]-ngram_num_list[sent_id-1]):
+                    sent_id_list.append(sent_id)
+            else:
+                for k in range(ngram_num_list[0]):
+                    sent_id_list.append(sent_id)
+        # print("sent_id_list: ", sent_id_list)
+        # print("ngrams: ", ngrams)
+        indices = [sum(sent_len_list[:sent_num])+i for sent_num, (i, ngram) in zip(sent_id_list, ngrams)]
+        ngrams = [ngram for i, ngram in ngrams]
+
+        index_dict = defaultdict(list)
+        for k, index in zip(ngrams, indices):
+            index_dict[tuple(k)].append(index)
+        # print(index_dict)
+        # for i, ngram in ngrams:
+        #     print(f"[{i}] {ngram}")
+        #     indices.append(i)
+        #     ngrams.append(ngram)
+        # print("indices: ", indices, "ngrams:", ngrams)
+        # for index, ngram in zip(indices, ngrams):
+        #     print(f"[{index}] {ngram}")
+        # breakpoint()
 
         def ngram_key(ngram):
-            return tuple(self.stemmer.stem(token.text).lower() for token in ngram)
+            # return tuple(self.stemmer.stem(token.text).lower() for token in ngram)
+            return tuple(token for token in ngram)
 
         key_to_ngrams = itertoolz.groupby(ngram_key, ngrams)
         key_to_spans = {}
+        # key_to_spans = defaultdict(list)
         for k, grouped_ngrams in key_to_ngrams.items():
+            # print(k, grouped_ngrams)
+            # print(ngram)
+            # print(ngram[0], ngram[-1])
+            # key_to_spans[k] = [
+            #     (ngram[0].i, ngram[-1].i + 1) # 여기서 i가 의미하는 게 대체 무엇? -> 문장에서의 위치 인덱스인듯
+            #     for ngram in grouped_ngrams
+            # ]
+            # if indices:
+            #     index = indices.pop(0)
+            #     key_to_spans[k] = [
+            #         (index, index+len(ngram)) 
+            #         for ngram in grouped_ngrams
+            #     ]
             key_to_spans[k] = [
-                (ngram[0].i, ngram[-1].i + 1)
+                (index_dict[tuple(ngram)][0], index_dict[tuple(ngram)][0]+len(ngram)) 
                 for ngram in grouped_ngrams
             ]
+            # for ngram in grouped_ngrams:
+            #     key_to_spans[]
+        # print(key_to_spans)
         return key_to_spans
 
     def _align_ngrams(
@@ -226,8 +287,11 @@ class NGramAligner():
         if not ngram_spans_1 or not ngram_spans_2:
             return {}
         max_span_end_1 = max(span[1] for span in itertools.chain.from_iterable(ngram_spans_1.values()))
+        print(max_span_end_1)
         token_is_available_1 = [True] * max_span_end_1  #
+        # print("ngram spans: ", ngram_spans_1, ngram_spans_2)
         matched_keys = list(set(ngram_spans_1.keys()) & set(ngram_spans_2.keys()))  # Matched normalized ngrams betwee
+        # print("matched_keys: ", matched_keys)
         matched_keys.sort(key=len, reverse=True)  # Process n-grams from longest to shortest
 
         alignment = defaultdict(list)  # Map from each matched span in text 1 to list of aligned spans in text 2
@@ -343,6 +407,6 @@ def _iter_len(it):
     # To get top K axis and value per row: https://stackoverflow.com/questions/42832711/using-np-argpartition-to-index-values-in-a-multidimensional-array
 
 
-def _ngrams(tokens, n):
+def _ngrams(tokens, n): # generator
     for i in range(len(tokens) - n + 1):
-        yield tokens[i:i + n]
+        yield [i, tokens[i:i + n]]

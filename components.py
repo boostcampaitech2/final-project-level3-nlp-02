@@ -5,11 +5,18 @@ from pathlib import Path
 from typing import Dict, Optional
 from typing import List, Tuple, Union
 
+import kss
 import htbuilder
 import streamlit as st
+import streamlit.components.v1
 from htbuilder import span, div, script, style, link, styles, HtmlElement, br
 from htbuilder.units import px
 from spacy.tokens import Doc
+from bs4 import BeautifulSoup
+
+# from konlpy.tag import Mecab
+
+
 
 palette = [
     "#66c2a5",
@@ -65,7 +72,7 @@ def color_with_opacity(hex_color, opacity):
     rgb = hex_to_rgb(hex_color)
     return f"rgba({rgb[0]},{rgb[1]},{rgb[2]},{opacity:.2f})"
 
-
+# mecab = Mecab()
 class Component:
 
     def show(self, width=None, height=None, scrolling=True, **kwargs):
@@ -73,7 +80,7 @@ class Component:
             **kwargs
         ))(self.html())
         html = str(out)
-        st.components.v1.html(html, width=width, height=height, scrolling=scrolling)
+        streamlit.components.v1.html(html, width=width, height=height, scrolling=scrolling)
 
     def html(self):
         raise NotImplemented
@@ -85,104 +92,121 @@ class MainView(Component):
         self,
         document: Doc,
         summaries: List[Doc],
-        semantic_alignments: Optional[List[Dict]],
+        # semantic_alignments: Optional[List[Dict]],
         lexical_alignments: Optional[List[Dict]],
         layout: str,
         scroll: bool,
-        gray_out_stopwords: bool
+        gray_out_stopwords: bool,
+        tokenizer,
     ):
         self.document = document
         self.summaries = summaries
-        self.semantic_alignments = semantic_alignments
+        # self.semantic_alignments = semantic_alignments
         self.lexical_alignments = lexical_alignments
         self.layout = layout
         self.scroll = scroll
         self.gray_out_stopwords = gray_out_stopwords
+        self.tokenizer = tokenizer
 
     def html(self):
 
         # Add document elements
-        if self.document._.name == 'Document':
-            document_name = 'Source Document'
-        else:
-            document_name = self.document._.name + ' summary'
+        # if self.document._.name == 'Document':
+        #     document_name = 'Source Document'
+        # else:
+        #     document_name = self.document._.name + ' summary'
+        
         doc_header = div(
             id_="document-header"
         )(
-            document_name
+            # document_name
+            'Source Document'
         )
         doc_elements = []
 
         # Add document content, which comprises multiple elements, one for each summary. Only the elment corresponding to
         # selected summary will be visible.
 
-        mu = MultiUnderline()
+        mu = MultiUnderline(self.tokenizer)
+        # mu = MultiUnderline()
 
-        for summary_idx, summary in enumerate(self.summaries):
+        for summary_idx, summary in enumerate(self.summaries): # list[Doc] -> summary: Doc
             token_idx_to_sent_idx = {}
-            for sent_idx, sent in enumerate(summary.sents):
-                for token in sent:
-                    token_idx_to_sent_idx[token.i] = sent_idx
+            # print(summary)
+            for sent_idx, sent in enumerate(summary):
+                for ind, token in enumerate(sent.split()):
+                    # print(summary)
+                    # print(sent)
+                    # print(token)
+                    # token_idx_to_sent_idx[token.i] = sent_idx
+                    token_idx_to_sent_idx[ind] = sent_idx
             is_selected_summary = (summary_idx == 0)  # By default, first summary is selected
 
-            if self.semantic_alignments is not None:
-                doc_token_idx_to_matches = defaultdict(list)
-                semantic_alignment = self.semantic_alignments[summary_idx]
-                for summary_token_idx, matches in semantic_alignment.items():
-                    for doc_token_idx, sim in matches:
-                        doc_token_idx_to_matches[doc_token_idx].append((summary_token_idx, sim))
-            else:
-                doc_token_idx_to_matches = {}
+            # if self.semantic_alignments is not None:
+            #     doc_token_idx_to_matches = defaultdict(list)
+            #     semantic_alignment = self.semantic_alignments[summary_idx]
+            #     for summary_token_idx, matches in semantic_alignment.items():
+            #         for doc_token_idx, sim in matches:
+            #             doc_token_idx_to_matches[doc_token_idx].append((summary_token_idx, sim))
+            # else:
+            doc_token_idx_to_matches = {}
 
             token_elements = []
-            for doc_token_idx, doc_token in enumerate(self.document):
-                if doc_token.is_stop or doc_token.is_punct:
-                    classes = ["stopword"]
-                    if self.gray_out_stopwords:
-                        classes.append("grayed-out")
-                    el = span(
-                        _class=" ".join(classes)
-                    )(
-                        doc_token.text
-                    )
-
-                else:
-                    matches = doc_token_idx_to_matches.get(doc_token_idx)
-                    if matches:
-                        summary_token_idx, sim = max(matches, key=itemgetter(1))
+            # for doc_token_idx, doc_token in enumerate(self.tokenizer.tokenize(self.document)):
+            for doc_token_idx, doc_token in enumerate(self.document.split()):
+                # if doc_token.is_stop or doc_token.is_punct:
+                #     classes = ["stopword"]
+                #     if self.gray_out_stopwords:
+                #         classes.append("grayed-out")
+                #     el = span(
+                #         _class=" ".join(classes)
+                #     )(
+                #         doc_token.text
+                #     )      
+                # else:
+                matches = doc_token_idx_to_matches.get(doc_token_idx)
+                if matches:
+                    # print("matches: ", matches)
+                    summary_token_idx, sim = max(matches, key=itemgetter(1))
+                    sent_idx = token_idx_to_sent_idx[summary_token_idx]
+                    color_primary = get_color(sent_idx)
+                    highlight_color_primary = color_with_opacity(color_primary, sim)
+                    props = {
+                        'data-highlight-id': str(doc_token_idx),
+                        'data-primary-color': highlight_color_primary
+                    }
+                    match_classes = []
+                    for summary_token_idx, sim in matches:
                         sent_idx = token_idx_to_sent_idx[summary_token_idx]
-                        color_primary = get_color(sent_idx)
-                        highlight_color_primary = color_with_opacity(color_primary, sim)
-                        props = {
-                            'data-highlight-id': str(doc_token_idx),
-                            'data-primary-color': highlight_color_primary
-                        }
-                        match_classes = []
-                        for summary_token_idx, sim in matches:
-                            sent_idx = token_idx_to_sent_idx[summary_token_idx]
-                            match_classes.append(f"summary-highlight-{summary_idx}-{summary_token_idx}")
-                            color = color_with_opacity(get_color(sent_idx), sim)
-                            props[f"data-color-{summary_idx}-{summary_token_idx}"] = color
-                        props["data-match-classes"] = " ".join(match_classes)
-                        el = self._highlight(
-                            doc_token.text,
-                            highlight_color_primary,
-                            color_primary,
-                            match_classes + ["annotation-hidden"],
-                            **props
-                        )
-                    else:
-                        el = doc_token.text
+                        match_classes.append(f"summary-highlight-{summary_idx}-{summary_token_idx}")
+                        color = color_with_opacity(get_color(sent_idx), sim)
+                        props[f"data-color-{summary_idx}-{summary_token_idx}"] = color
+                    props["data-match-classes"] = " ".join(match_classes)
+                    el = self._highlight(
+                        doc_token, # doc_token.text
+                        highlight_color_primary,
+                        color_primary,
+                        match_classes + ["annotation-hidden"],
+                        **props
+                    )
+                else:
+                    # 여기 실행됨
+                    el = doc_token # el = doc_token.text
                 token_elements.append(el)
-
+            # print(token_idx_to_sent_idx)
             spans = []
             if self.lexical_alignments is not None:
+                # print(self.lexical_alignments)
                 lexical_alignment = self.lexical_alignments[summary_idx]
                 for summary_span, doc_spans in lexical_alignment.items():
+                    # print(summary_span)
                     summary_span_start, summary_span_end = summary_span
+                    # print(summary_span_start)
                     span_id = f"{summary_idx}-{summary_span_start}-{summary_span_end}"
                     sent_idx = token_idx_to_sent_idx[summary_span_start]
+                    # print(doc_spans)
                     for doc_span_start, doc_span_end in doc_spans:
+                        print("doc spans: ", doc_span_start, doc_span_end)
                         spans.append((
                             doc_span_start,
                             doc_span_end,
@@ -190,6 +214,7 @@ class MainView(Component):
                             get_color(sent_idx),
                             span_id
                         ))
+            print("token_elements: ", token_elements)
             token_elements = mu.markup(token_elements, spans)
 
             classes = ["main-doc", "bordered"]
@@ -229,17 +254,21 @@ class MainView(Component):
         )
 
         summary_items = []
-        for summary_idx, summary in enumerate(self.summaries):
+        for summary_idx, summary in enumerate(self.summaries): ## [['한문장 split']]
             token_idx_to_sent_idx = {}
-            for sent_idx, sent in enumerate(summary.sents):
-                for token in sent:
-                    token_idx_to_sent_idx[token.i] = sent_idx
-
+            for sent_idx, sent in enumerate(summary): # summary.sents ['한문장 split']
+                for i, token in enumerate(sent.split()): ## 'split token'
+                    # token_idx_to_sent_idx[token.i] = sent_idx
+                    token_idx_to_sent_idx[i] = sent_idx
+            print(token_idx_to_sent_idx)
             spans = []
-            matches_ngram = [False] * len(list(summary))
+            # matches_ngram = [False] * len(list(summary))
+            matches_ngram = [False] * len(list(sent))
+            print("설마....", self.lexical_alignments)
             if self.lexical_alignments is not None:
                 lexical_alignment = self.lexical_alignments[summary_idx]
                 for summary_span in lexical_alignment.keys():
+                    # print("lexical_alignment:", summary_span)
                     start, end = summary_span
                     matches_ngram[slice(start, end)] = [True] * (end - start)
                     span_id = f"{summary_idx}-{start}-{end}"
@@ -252,56 +281,61 @@ class MainView(Component):
                         span_id
                     ))
 
-            if self.semantic_alignments is not None:
-                semantic_alignment = self.semantic_alignments[summary_idx]
-            else:
-                semantic_alignment = {}
+            # if self.semantic_alignments is not None:
+            #     semantic_alignment = self.semantic_alignments[summary_idx]
+            # else:
+            semantic_alignment = {}
+            # 
             token_elements = []
-            for token_idx, token in enumerate(summary):
-                if token.is_stop or token.is_punct:
-                    classes = ["stopword"]
-                    if self.gray_out_stopwords:
-                        classes.append("grayed-out")
-                    el = span(
-                        _class=" ".join(classes)
-                    )(
-                        token.text
-                    )
+            for token_idx, token in enumerate(summary[0].split()): ## '한문장'
+                # if token.is_stop or token.is_punct:
+                #     classes = ["stopword"]
+                #     if self.gray_out_stopwords:
+                #         classes.append("grayed-out")
+                #     el = span(
+                #         _class=" ".join(classes)
+                #     )(
+                #         token.text
+                #     )
+                # else:
+                classes = []
+                # if token.ent_iob_ in ('I', 'B'):
+                #     classes.append("entity")
+                # print("matches_ngram:", matches_ngram)
+                if matches_ngram[token_idx]:
+                    classes.append("matches-ngram")
+                # matches = semantic_alignment.get(token_idx)
+                # if matches:
+                #     top_match = max(matches, key=itemgetter(1))
+                #     top_sim = max(top_match[1], 0)
+                #     top_doc_token_idx = top_match[0]
+                #     props = {
+                #         "data-highlight-id": f"{summary_idx}-{token_idx}",
+                #         "data-top-doc-highlight-id": str(top_doc_token_idx),
+                #         "data-top-doc-sim": f"{top_sim:.2f}",
+                #     }
+                #     classes.extend([
+                #         "annotation-hidden",
+                #         f"summary-highlight-{summary_idx}-{token_idx}"
+                #     ])
+                #     sent_idx = token_idx_to_sent_idx[token_idx]
+                #     el = self._highlight(
+                #         token.text, # token.text
+                #         color_with_opacity(get_color(sent_idx), top_sim),
+                #         color_with_opacity(get_color(sent_idx), 1),
+                #         classes,
+                #         **props
+                #     )
+                # else:
+                if classes:
+                    el = span(_class=" ".join(classes))(token) # token.text # 공백 없애도 차이 없음
                 else:
-                    classes = []
-                    if token.ent_iob_ in ('I', 'B'):
-                        classes.append("entity")
-                    if matches_ngram[token_idx]:
-                        classes.append("matches-ngram")
-                    matches = semantic_alignment.get(token_idx)
-                    if matches:
-                        top_match = max(matches, key=itemgetter(1))
-                        top_sim = max(top_match[1], 0)
-                        top_doc_token_idx = top_match[0]
-                        props = {
-                            "data-highlight-id": f"{summary_idx}-{token_idx}",
-                            "data-top-doc-highlight-id": str(top_doc_token_idx),
-                            "data-top-doc-sim": f"{top_sim:.2f}",
-                        }
-                        classes.extend([
-                            "annotation-hidden",
-                            f"summary-highlight-{summary_idx}-{token_idx}"
-                        ])
-                        sent_idx = token_idx_to_sent_idx[token_idx]
-                        el = self._highlight(
-                            token.text,
-                            color_with_opacity(get_color(sent_idx), top_sim),
-                            color_with_opacity(get_color(sent_idx), 1),
-                            classes,
-                            **props
-                        )
-                    else:
-                        if classes:
-                            el = span(_class=" ".join(classes))(token.text)
-                        else:
-                            el = token.text
+                    # el = token.text
+                    el = token
+                    #
                 token_elements.append(el)
 
+            # print("token_elements: ", token_elements)
             token_elements = mu.markup(token_elements, spans)
 
             classes = ["summary-item"]
@@ -310,9 +344,9 @@ class MainView(Component):
 
             summary_items.append(
                 div(
-                    **{"class": ' '.join(classes), "data-index": summary_idx}
+                    **{"class": ' '.join(classes), "data-index": summary_idx} # 이거는 공백 없애면 안됨
                 )(
-                    div(_class="name")(summary._.name),
+                    div(_class="name")("생성된 제목: "), # summary._.name
                     div(_class="content")(token_elements)
                 )
             )
@@ -321,10 +355,10 @@ class MainView(Component):
             classes.append("scroll")
         if self.lexical_alignments is not None:
             classes.append("has-lexical-alignment")
-        if self.semantic_alignments is not None:
-            classes.append("has-semantic-alignment")
+        # if self.semantic_alignments is not None:
+        #     classes.append("has-semantic-alignment")
         summary_list = div(
-            _class=" ".join(classes)
+            _class=" ".join(classes) # 이것도 공백 없애면 안됨
         )(
             summary_items
         )
@@ -410,9 +444,11 @@ SPACE = "&ensp;"
 class MultiUnderline:
     def __init__(
         self,
+        tokenizer,
         underline_thickness=3,
         underline_spacing=1
     ):
+        self.tokenizer =tokenizer
         self.underline_thickness = underline_thickness
         self.underline_spacing = underline_spacing
 
@@ -498,6 +534,13 @@ class MultiUnderline:
                 first_token_in_line = True
             else:
                 # Add underlines to token for all active spans
+                # if type(token) == str: 
+                #     token = self.tokenizer.convert_tokens_to_string(token)
+                # if type(token) == htbuilder.HtmlElement:
+                #     print(token)
+                #     soup = BeautifulSoup(token)
+                #     token=soup.find('span',{'class':'matches-ngram'})
+                #     print(token)
                 elements.append(self._get_underline_element(token, slot_to_spans))
         return elements
 
