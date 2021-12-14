@@ -110,8 +110,8 @@ def main():
 
         # decoder config 설정
         config_d.vocab_size = config_e.vocab_size
-        config_d.pad_token_id = 0
-        config_d.max_position_embeddings = 128
+        config_d.pad_token_id = config_e.pad_token_id
+        config_d.max_position_embeddings = data_args.max_target_length
         
         # doc_type_embedding 사용할 경우
         if data_args.use_doc_type_ids :
