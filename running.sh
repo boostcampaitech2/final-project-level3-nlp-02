@@ -3,32 +3,30 @@
 ## Pretraining using Infilling
 ## 학습 파라미터 : epoch, weight decay, learning rate, warmup steps
 
-
 python pretrain.py \
 --do_train \
 --is_pretrain \
---output_dir model/longformerbart_bV2 \
+--output_dir model/longformerbart_pretrain_V1_trial3 \
 --num_train_epochs 10 \
+--logging_steps 2000 \
+--save_strategy epoch \
+--evaluation_strategy no \
 --weight_decay 1e-5 \
 --warmup_steps 20000 \
---learning_rate 2e-04 \
+--learning_rate 0.2 \
 --max_source_length 2048 \
 --max_target_length 2048 \
 --project_name baseV1.0_Kobart \
 --per_device_train_batch_size 2 \
 --gradient_accumulation_steps 4 \
---logging_steps 2000 \
---save_strategy epoch \
---evaluation_strategy no \
---wandb_unique_tag longformerBart_pretraining_V2 \
---hidden_size 256 \
+--wandb_unique_tag longformerBart_pretraining_V1 \
+--hidden_size 128 \
 --encoder_layer_size 3 \
 --decoder_layer_size 3 \
 --attention_head_size 4 \
---attention_window_size 64 \
---num_samples 1000 \
---dropout 0.7 \
---is_noam 
+--attention_window_size 32 \
+--dropout 0.5 \
+--is_noam
 
 
 
@@ -43,6 +41,13 @@ python pretrain.py \
 # 5. teacher forcing -> lr 형태로 100 -> 0 => (구현 필요) -> 해야죠 => fine_tuning => 내일
 # 6. LR scheduler => noam => (구현) -> 끝
 # 7. LR : +-1e-4
+
+
+
+
+
+
+
 
 
 

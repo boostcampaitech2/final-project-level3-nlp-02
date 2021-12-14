@@ -32,6 +32,7 @@ from trainer import Seq2SeqTrainerWithDocType
 from transformers.trainer_utils import get_last_checkpoint
 
 from models.rebuilding_longformerbart import make_model_for_changing_postion_embedding
+from models.tokenizer import BartTokenizerWithDocType
 from models.modeling_longformerbart import (
     LongformerBartConfig,
     LongformerBartWithDoctypeForConditionalGeneration,
@@ -41,7 +42,6 @@ from data_collator import (
     DataCollatorForTextInfillingDocType
     )
 
-from utils.tokenizer import BartTokenizerWithDocType
 
 def seed_everything(seed):
     torch.manual_seed(seed)
