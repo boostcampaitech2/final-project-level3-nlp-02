@@ -107,10 +107,8 @@ class Seq2SeqTrainerWithConditionalDocType(Seq2SeqTrainer):
         else:
             if self.lr_scheduler is None:
                 self.lr_scheduler = self.get_noam_schedule_with_warmup(
-                    #self.args.lr_scheduler_type,
                     optimizer=self.optimizer if optimizer is None else optimizer,
                     num_warmup_steps=self.args.get_warmup_steps(num_training_steps),
-                    #num_training_steps=num_training_steps,
                 )
             return self.lr_scheduler
 

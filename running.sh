@@ -12,12 +12,9 @@ python pretrain.py \
 --logging_steps 2000 \
 --save_strategy epoch \
 --evaluation_strategy no \
---weight_decay 1e-5 \
---warmup_steps 20000 \
---learning_rate 0.2 \
 --max_source_length 2048 \
 --max_target_length 2048 \
---project_name baseV1.0_Kobart \
+--project_name longformerbart \
 --per_device_train_batch_size 2 \
 --gradient_accumulation_steps 4 \
 --wandb_unique_tag longformerBart_pretraining_V1 \
@@ -27,13 +24,21 @@ python pretrain.py \
 --attention_head_size 4 \
 --attention_window_size 32 \
 --dropout 0.5 \
+--learning_rate 0.11 \
+--warmup_steps 10000 \
+--weight_decay 1e-2 \
+--adam_beta1  0.9 \
+--adam_beta2  0.999 \
+--adam_epsilon 1e-06 \
+--num_samples 10 \
 --is_noam
+
 
 # 1. h_dim 128/256 => 논문 => 128 / 256
 # 2. layer depth 3/1 6/3 => 논문 => 3/3
 # +a window_size, head = 32 / 64 => (4)
 # 3. dropout 70/50/30 => 선택 => 50/70
-# 4. weight decay 1e-5 => fix
+# 4. weight decay 1e-2 / 1e-5 => fix
 # 5. warmup => 
 # 5. teacher forcing -> lr 형태로 100 -> 0 => (구현 필요) -> 해야죠 => fine_tuning => 내일
 # 6. LR scheduler => noam => (구현) -> 끝
@@ -98,8 +103,8 @@ python pretrain.py \
 # --per_device_eval_batch_size 2 \
 # --is_part True 
 
-python predict.py \
---model_name_or_path /opt/ml/final_project/model/kobigbirdbart/checkpoint-55044 \
---tokenizer_name monologg/kobigbird-bert-base \
---num_beams 3 \
---use_kobigbird_bart True
+# python predict.py \
+# --model_name_or_path /opt/ml/final_project/model/kobigbirdbart/checkpoint-55044 \
+# --tokenizer_name monologg/kobigbird-bert-base \
+# --num_beams 3 \
+# --use_kobigbird_bart True

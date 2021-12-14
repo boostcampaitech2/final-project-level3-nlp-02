@@ -1,18 +1,14 @@
 import os
-import importlib.util
 import random
-import math
 from dotenv import load_dotenv
 
 import numpy as np
 import torch
-import torch.nn as nn
 import wandb
 
 from functools import partial
 from transformers import (
     HfArgumentParser,
-    EarlyStoppingCallback
 )
 
 from datasets import load_dataset
@@ -24,23 +20,18 @@ from args import (
     CustomSeq2SeqTrainingArguments,
 )
 
-from dataloader import SumDataset
 from processor import preprocess_function
 from rouge import compute_metrics
 
-from trainer import Seq2SeqTrainerWithDocType
+from trainer import Seq2SeqTrainerWithConditionalDocType
 from transformers.trainer_utils import get_last_checkpoint
 
-from models.rebuilding_longformerbart import make_model_for_changing_postion_embedding
 from models.tokenizer import BartTokenizerWithDocType
 from models.modeling_longformerbart import (
     LongformerBartConfig,
     LongformerBartWithDoctypeForConditionalGeneration,
     )
-from data_collator import (
-    DataCollatorForSeq2SeqWithDocType,
-    DataCollatorForTextInfillingDocType
-    )
+from data_collator import DataCollatorForTextInfillingDocType
 
 
 def seed_everything(seed):
@@ -85,9 +76,6 @@ def main():
     config = LongformerBartConfig.from_pretrained(
             model_args.config_name if model_args.config_name else model_args.model_name_or_path)
     
-    # if not os.path.exists(training_args.model_path):
-    #     make_model_for_changing_postion_embedding(config,data_args,model_args)
-
     config.encoder_layers = model_args.encoder_layer_size
     config.decoder_layers = model_args.decoder_layer_size
     config.d_model = model_args.hidden_size
@@ -98,6 +86,9 @@ def main():
     config.attention_window = [model_args.attention_window_size]*model_args.encoder_layer_size
     config.attention_dropout = model_args.dropout
     config.dropout = model_args.dropout
+    config.encoder_ffn_dim = config.d_model*4
+    config.decoder_ffn_dim = config.d_model*4
+    
 
     tokenizer = BartTokenizerWithDocType.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
@@ -106,7 +97,7 @@ def main():
     )
     
     training_args.model_config = config
-    def model_init(training_args):
+    def model_init():
         # https://discuss.huggingface.co/t/fixing-the-random-seed-in-the-trainer-does-not-produce-the-same-results-across-runs/3442
         # Producibility parameter initialization
         model = LongformerBartWithDoctypeForConditionalGeneration._from_config(training_args.model_config)
@@ -141,15 +132,12 @@ def main():
         name=log_args.wandb_unique_tag
     )
     wandb.config.update(training_args)
-    
-    comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
-    
-    trainer = Seq2SeqTrainerWithDocType(
+
+    trainer = Seq2SeqTrainerWithConditionalDocType(
         args=training_args,
         train_dataset=train_dataset,
         tokenizer=tokenizer,
         data_collator=data_collator,
-        # compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
         model_init=model_init,
     )
 
