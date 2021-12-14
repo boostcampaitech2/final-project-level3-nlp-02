@@ -3,7 +3,7 @@ import torch.nn as nn
 import random
 import math
 
-from transformers import  AutoConfig, BigBirdConfig, BigBirdPreTrainedModel
+from transformers import  BigBirdConfig, BigBirdPreTrainedModel
 from packaging import version
 
 from transformers.utils import logging
@@ -820,8 +820,6 @@ class EncoderDecoderModel(PreTrainedModel):
             encoder = AutoModel.from_config(config.encoder)
 
         if decoder is None:
-            from transformers.models.auto.modeling_auto import AutoModelForCausalLM
-
             decoder = BartDecoderWithDoctype(config.decoder)
 
         self.encoder = encoder
@@ -1061,6 +1059,12 @@ class EncoderDecoderModel(PreTrainedModel):
             "Please use the respective methods of the wrapped objects (model.encoder.resize_token_embeddings(...) or model.decoder.resize_token_embeddings(...))"
         )
 
-    def _reorder_cache(self, past, beam_idx):
-        # apply decoder cache reordering here
-        return self.decoder._reorder_cache(past, beam_idx)
+    @staticmethod
+    def _reorder_cache(past, beam_idx):
+        reordered_past = ()
+        for layer_past in past:
+            # cached cross_attention states don't have to be reordered -> they are always the same
+            reordered_past += (
+                tuple(past_state.index_select(0, beam_idx) for past_state in layer_past[:2]) + layer_past[2:],
+            )
+        return reordered_past

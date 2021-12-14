@@ -144,7 +144,6 @@ def main():
             decoder.embed_tokens = encoder.embeddings.word_embeddings
 
             total_model = EncoderDecoderModel(encoder = encoder, decoder = decoder)
-            print(total_model)
             return total_model
         else :
             return AutoModelForSeq2SeqLM.from_pretrained(
