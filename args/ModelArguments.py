@@ -32,3 +32,8 @@ class ModelArguments :
         default=None,
         metadata={"help": "Where to store the pretrained models downloaded from huggingface.co"},
     )
+    use_kobigbird_bart: bool = field(
+        default=False,
+        metadata={"help": "use kobigbird encoder and bart decoder"},
+    )
+    
