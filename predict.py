@@ -41,7 +41,7 @@ def main() :
         use_fast=model_args.use_fast_tokenizer
     )
 
-    if model_args.use_kobigbird_bart :
+    if model_args.use_model == "bigbart" :
         model = EncoderDecoderModel.from_pretrained(model_args.model_name_or_path)
         model.encoder.encoder.layer = model.encoder.encoder.layer[:model.config.encoder.encoder_layers]
     else :
@@ -61,7 +61,7 @@ def main() :
         dataset_name,
         'validation',
         shuffle_seed=42,
-        ratio=data_args.relative_sample_ratio,
+        ratio=0.5,
         USE_AUTH_TOKEN=USE_AUTH_TOKEN
     ).load_data()
     idx = 500 ## 바꾸면서 test 해보세요!

@@ -6,10 +6,6 @@ class DataTrainingArguments:
     """
     Arguments pertaining to what data we are going to input our model for training and eval.
     """
-    # dataset_name: Optional[str] = field(
-    #     default="paper,news",
-    #     metadata={"help": "The name of the dataset to use."},
-    # )
     text_column: Optional[str] = field(
         default='text',
         metadata={"help": "The name of the column in the datasets containing the full texts (for summarization)."},

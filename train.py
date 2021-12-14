@@ -69,7 +69,7 @@ def main():
         training_args.predict_with_generate = True
     print(f"** Train mode: { training_args.do_train}")
     print(f"** model is from {model_args.model_name_or_path}")
-    print(f"** data is from {data_args.dataset_name}")
+    # print(f"** data is from {data_args.dataset_name}")
     print(f'** max_target_length:', data_args.max_target_length)
 
     if os.path.isdir(training_args.output_dir) and training_args.do_train and not training_args.overwrite_output_dir:
@@ -79,8 +79,8 @@ def main():
         )
 
     ## load and process dataset
-    types = data_args.dataset_name.split(',')
-    data_args.dataset_name = ['metamong1/summarization_' + dt for dt in types]
+    # types = data_args.dataset_name.split(',')
+    # data_args.dataset_name = ['metamong1/summarization_' + dt for dt in types]
     
     load_dotenv(dotenv_path=data_args.use_auth_token_path)
     USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")    
@@ -171,7 +171,10 @@ def main():
             # Producibility parameter initialization
             encoder = BigBirdModelWithDoctype.from_pretrained("monologg/kobigbird-bert-base",config=config["encoder"])
             decoder = BartDecoderWithDoctype.from_pretrained("gogamza/kobart-base-v1", config=config["decoder"])
-            encoder.encoder.layer = [encoder.encoder.layer[i] for i in range(0,12,2)]
+            
+            for i in range(1,6):
+                encoder.encoder.layer[i] = encoder.encoder.layer[2*i]
+            encoder.encoder.layer = encoder.encoder.layer[:config["encoder"].encoder_layers]
             decoder.embed_tokens = encoder.embeddings.word_embeddings
             return EncoderDecoderModel(encoder = encoder, decoder = decoder)     
         else :
