@@ -19,7 +19,8 @@ def preprocess_function(examples:datasets,
     padding = "max_length" if data_args.pad_to_max_length else False
     inputs = examples['text']
     titles = examples['title']
-    doc_types = examples['doc_type']
+    if data_args.use_doc_type_ids:
+        doc_types = examples['doc_type'] 
     
     # Setup the tokenizer for inputs
     model_inputs = tokenizer(inputs, max_length=max_source_length, padding=padding, truncation=True)
@@ -39,8 +40,9 @@ def preprocess_function(examples:datasets,
                                                             padding_num= pad_token_id,
                                                             max_length=max_target_length)
         
-        doc_type_id_list = get_doc_type_ids(model_inputs["attention_mask"][i], doc_type_dict[doc_types[i]])
-        doc_type_ids.append(doc_type_id_list)
+        if data_args.use_doc_type_ids:
+            doc_type_id_list = get_doc_type_ids(model_inputs["attention_mask"][i], doc_type_dict[doc_types[i]])
+            doc_type_ids.append(doc_type_id_list)
 
     if not data_args.is_pretrain:
         # Setup the tokenizer for targets
@@ -58,7 +60,8 @@ def preprocess_function(examples:datasets,
                         ) for label in labels["input_ids"]
                 ]
         model_inputs["labels"] = labels["input_ids"]
-    model_inputs["doc_type_ids"] = doc_type_ids
+    if data_args.use_doc_type_ids:
+        model_inputs["doc_type_ids"] = doc_type_ids
     return model_inputs 
 
 
