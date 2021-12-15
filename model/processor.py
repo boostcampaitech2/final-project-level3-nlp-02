@@ -80,5 +80,4 @@ def add_padding(sample_tokens:List[int],
         while len(sample_tokens_len) < max_length :
             sample_tokens += [padding_num] * (max_length-sample_tokens_len)
     return sample_tokens
-
     

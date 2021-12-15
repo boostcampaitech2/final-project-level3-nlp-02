@@ -105,7 +105,7 @@ python train.py \
 --model_name_or_path monologg/kobigbird-bert-base \
 --use_model bigbart \
 --do_train \
---output_dir checkpoint/kobigbirdbart_test \
+--output_dir checkpoint/kobigbirdbart_ep3_bs2_RD \
 --overwrite_output_dir \
 --num_train_epochs 3 \
 --learning_rate 3e-05 \
@@ -116,12 +116,13 @@ python train.py \
 --es_patience 3 \
 --load_best_model_at_end True \
 --project_name kobigbirdbart \
---wandb_unique_tag kobigbirdbart_test \
+--wandb_unique_tag kobigbirdbart_ep3_bs2_RD \
 --per_device_train_batch_size 2 \
 --per_device_eval_batch_size 8 \
---gradient_accumulation_steps 4 \
---is_part True 
-
+--is_part True \
+--use_rdrop True \
+--label_smoothing_factor 0.1 \
+--num_samples 10
 # python predict.py \
 # --model_name_or_path /opt/ml/final_project/model/kobigbirdbart \
 # --tokenizer_name monologg/kobigbird-bert-base \

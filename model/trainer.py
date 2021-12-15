@@ -51,16 +51,12 @@ class Seq2SeqTrainerWithConditionalDocType(Seq2SeqTrainer):
             "num_beams": self._num_beams if self._num_beams is not None else self.model.config.num_beams,
             "synced_gpus": True if is_deepspeed_zero3_enabled() else False,
         }
-        
-        # generated_tokens = self.model.generate(
-        #     **inputs, **gen_kwargs
-        # )
-        
+
         # if "doc_type_ids" in inputs.keys():
         generated_tokens = self.model.generate(
             inputs["input_ids"],
             attention_mask=inputs["attention_mask"],
-            doc_type_ids=inputs["doc_type_ids"] if "doc_type_ids" in inputs.keys() else None
+            doc_type_ids=inputs["doc_type_ids"] if "doc_type_ids" in inputs.keys() else None,
             **gen_kwargs,
         )
 
@@ -151,7 +147,7 @@ class Seq2SeqTrainerWithConditionalDocType(Seq2SeqTrainer):
             'input_ids': torch.cat([inputs['input_ids'], inputs['input_ids'].clone()], 0),
             'attention_mask': torch.cat([inputs['attention_mask'], inputs['attention_mask'].clone()], 0),
             'labels': inputs['labels'],
-            'decoder_input_ids': torch.cat([inputs['decoder_input_ids'], inputs['decoder_input_ids'].clone()], 0),
+            # 'decoder_input_ids': torch.cat([inputs['decoder_input_ids'], inputs['decoder_input_ids'].clone()], 0),
         } # 두 번 forward 하기 힘드니까 concate해서 한 번에 feed 하고 잘라주는 형식입니다.
 
         if self.use_amp:
@@ -198,9 +194,11 @@ class Seq2SeqTrainerWithConditionalDocType(Seq2SeqTrainer):
         if self.label_smoother is not None and "labels" in inputs:
             labels = inputs.pop("labels")
             pad_mask = labels.unsqueeze(-1).eq(self.label_smoother.ignore_index)
-            labels = torch.cat([labels, labels.clone()], 0) # for r-drop
+            labels = torch.cat([labels, labels.clone()], 0) # for r-drop3
+            inputs['labels'] = labels
         else:
             labels = None
+        
         outputs = model(**inputs)
         
         # Save past state if it exists
