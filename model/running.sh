@@ -4,34 +4,34 @@
 ## 학습 파라미터 : epoch, weight decay, learning rate, warmup steps
 
 ########## pretraining #################
-python pretrain.py \
---do_train \
---is_pretrain \
---output_dir model/longformerbart_pretrain_V1_trial3 \
---num_train_epochs 10 \
---logging_steps 2000 \
---save_strategy epoch \
---evaluation_strategy no \
---max_source_length 2048 \
---max_target_length 2048 \
---project_name longformerbart \
---per_device_train_batch_size 2 \
---gradient_accumulation_steps 4 \
---wandb_unique_tag longformerBart_pretraining_V1 \
---hidden_size 128 \
---encoder_layer_size 3 \
---decoder_layer_size 3 \
---attention_head_size 4 \
---attention_window_size 32 \
---dropout 0.5 \
---learning_rate 0.11 \
---warmup_steps 10000 \
---weight_decay 1e-2 \
---adam_beta1  0.9 \
---adam_beta2  0.999 \
---adam_epsilon 1e-06 \
---num_samples 10 \
---is_noam
+# python pretrain.py \
+# --do_train \
+# --is_pretrain \
+# --output_dir model/longformerbart_pretrain_V1_trial3 \
+# --num_train_epochs 10 \
+# --logging_steps 2000 \
+# --save_strategy epoch \
+# --evaluation_strategy no \
+# --max_source_length 2048 \
+# --max_target_length 2048 \
+# --project_name longformerbart \
+# --per_device_train_batch_size 2 \
+# --gradient_accumulation_steps 4 \
+# --wandb_unique_tag longformerBart_pretraining_V1 \
+# --hidden_size 128 \
+# --encoder_layer_size 3 \
+# --decoder_layer_size 3 \
+# --attention_head_size 4 \
+# --attention_window_size 32 \
+# --dropout 0.5 \
+# --learning_rate 0.11 \
+# --warmup_steps 10000 \
+# --weight_decay 1e-2 \
+# --adam_beta1  0.9 \
+# --adam_beta2  0.999 \
+# --adam_epsilon 1e-06 \
+# --num_samples 10 \
+# --is_noam
 
 
 # 1. h_dim 128/256 => 논문 => 128 / 256
@@ -51,7 +51,7 @@ python pretrain.py \
 python train.py \
 --do_train \
 --output_dir model/baseV1.0_Kobart \
---num_train_epochs 3 \
+--num_train_epochs 1 \
 --learning_rate 3e-05 \
 --max_source_length 1024 \
 --max_target_length 128 \
@@ -60,7 +60,7 @@ python train.py \
 --es_patience 3 \
 --load_best_model_at_end True \
 --project_name baseV1.0_Kobart \
---wandb_unique_tag kobartV1_ep3_lr3e05_len1024_R50_rdrop1.0 \
+--wandb_unique_tag kobartV1_ep3_lr3e05_len1024_R50_rdrop_merge \
 --use_rdrop True \
 --label_smoothing_factor 0.1 # BART rdrop 사용시 필수
 

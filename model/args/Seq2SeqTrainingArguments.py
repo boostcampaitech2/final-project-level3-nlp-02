@@ -67,3 +67,8 @@ class CustomSeq2SeqTrainingArguments(Seq2SeqTrainingArguments):
             "help": "Whether to create noam scheduler"
         },
     )
+    use_rdrop: bool = field(
+        default=False,
+        metadata={
+            "help": "Whether to use r-drop when fine-tuning"}
+    )

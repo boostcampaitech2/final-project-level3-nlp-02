@@ -150,7 +150,8 @@ def main():
         config["decoder"].vocab_size = config["encoder"].vocab_size
         config["decoder"].pad_token_id = config["encoder"].pad_token_id
         config["decoder"].max_position_embeddings = data_args.max_target_length
-        
+        training_args.model_config = config["decoder"]
+
         if data_args.use_doc_type_ids :
             config["encoder"].doc_type_size = 3
             config["decoder"].doc_type_size = 3
@@ -231,29 +232,16 @@ def main():
     wandb.config.update(training_args)
     
     comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
-    if model_args.use_rdrop:
-        trainer = RdropTrainer(
-            args=training_args,
-            train_dataset=train_dataset,
-            eval_dataset=valid_dataset,
-            tokenizer=tokenizer,
-            data_collator=data_collator,
-            compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
-            model_init=model_init,
-            callbacks = [EarlyStoppingCallback(early_stopping_patience=training_args.es_patience)] if training_args.es_patience else None
-        )
-    else:
-        trainer = Seq2SeqTrainerWithConditionalDocType(
-            args=training_args,
-            train_dataset=train_dataset,
-            eval_dataset=valid_dataset,
-            tokenizer=tokenizer,
-            data_collator=data_collator,
-            compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
-            model_init=model_init, ## model 성능 재현
-            callbacks = [EarlyStoppingCallback(early_stopping_patience=training_args.es_patience)] if training_args.es_patience else None
-        )
-
+    trainer = Seq2SeqTrainerWithConditionalDocType(
+        args=training_args,
+        train_dataset=train_dataset,
+        eval_dataset=valid_dataset,
+        tokenizer=tokenizer,
+        data_collator=data_collator,
+        compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
+        model_init=model_init, ## model 성능 재현
+        callbacks = [EarlyStoppingCallback(early_stopping_patience=training_args.es_patience)] if training_args.es_patience else None
+    )
 
     if training_args.do_train:
         train_result = trainer.train()
