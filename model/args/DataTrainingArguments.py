@@ -121,7 +121,7 @@ class DataTrainingArguments:
             "help": "whether to ba a part of datasets (default=False)" 
         }, 
     )
-    rouge_filter_stopwords: bool = field(
+    compute_filter_stopwords: bool = field(
          default=False, 
          metadata={ 
             "help": "whether to ba a part of datasets (default=False)" 

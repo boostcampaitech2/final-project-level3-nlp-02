@@ -169,8 +169,6 @@ def main():
         cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast_tokenizer
     )
-
-    model = BartForConditionalGeneration(config) # for DataCollator
     
     def model_init():
         if model_args.use_model == "longbart":
@@ -217,7 +215,6 @@ def main():
     )
     data_collator = DataCollatorForSeq2SeqWithDocType(
         tokenizer,
-        model=model,
         label_pad_token_id=label_pad_token_id,
         pad_to_multiple_of=pad_to_multiple_of
     )
