@@ -2,13 +2,13 @@ import torch
 import torch.nn as nn
 import random
 import math
+from typing import Optional
+from packaging import version
+from transformers.utils import logging
+from torch.nn import CrossEntropyLoss
+
 
 from transformers import  BigBirdConfig, BigBirdPreTrainedModel
-from packaging import version
-
-from transformers.utils import logging
-from typing import Optional
-
 
 from transformers.models.big_bird.modeling_big_bird import BigBirdEmbeddings, BigBirdEncoder, BigBirdLayer
 from transformers.modeling_outputs import (BaseModelOutputWithPoolingAndCrossAttentions, 
@@ -20,7 +20,7 @@ from transformers.models.bart.configuration_bart import BartConfig
 from transformers.modeling_utils import PreTrainedModel
 from transformers.configuration_utils import PretrainedConfig
 from transformers.models.encoder_decoder.configuration_encoder_decoder import EncoderDecoderConfig
-from torch.nn import CrossEntropyLoss
+
 
 logger = logging.get_logger(__name__)
 
@@ -153,17 +153,6 @@ class BigBirdEmbeddingsWithDoctype(BigBirdEmbeddings):
 
 
 class BigBirdModelWithDoctype(BigBirdPreTrainedModel):
-    """
-    The model can behave as an encoder (with only self-attention) as well as a decoder, in which case a layer of
-    cross-attention is added between the self-attention layers, following the architecture described in `Attention is
-    all you need <https://arxiv.org/abs/1706.03762>`__ by Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit,
-    Llion Jones, Aidan N. Gomez, Lukasz Kaiser and Illia Polosukhin.
-    To behave as an decoder the model needs to be initialized with the :obj:`is_decoder` argument of the configuration
-    set to :obj:`True`. To be used in a Seq2Seq model, the model needs to initialized with both :obj:`is_decoder`
-    argument and :obj:`add_cross_attention` set to :obj:`True`; an :obj:`encoder_hidden_states` is then expected as an
-    input to the forward pass.
-    """
-
     def __init__(self, config, add_pooling_layer=True):
         super().__init__(config)
         self.attention_type = self.config.attention_type
@@ -238,24 +227,6 @@ class BigBirdModelWithDoctype(BigBirdPreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
-        r"""
-        encoder_hidden_states  (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length, hidden_size)`, `optional`):
-            Sequence of hidden-states at the output of the last layer of the encoder. Used in the cross-attention if
-            the model is configured as a decoder.
-        encoder_attention_mask (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length)`, `optional`):
-            Mask to avoid performing attention on the padding token indices of the encoder input. This mask is used in
-            the cross-attention if the model is configured as a decoder. Mask values selected in ``[0, 1]``:
-            - 1 for tokens that are **not masked**,
-            - 0 for tokens that are **masked**.
-        past_key_values (:obj:`tuple(tuple(torch.FloatTensor))` of length :obj:`config.n_layers` with each tuple having 4 tensors of shape :obj:`(batch_size, num_heads, sequence_length - 1, embed_size_per_head)`):
-            Contains precomputed key and value hidden states of the attention blocks. Can be used to speed up decoding.
-            If :obj:`past_key_values` are used, the user can optionally input only the last :obj:`decoder_input_ids`
-            (those that don't have their past key value states given to this model) of shape :obj:`(batch_size, 1)`
-            instead of all :obj:`decoder_input_ids` of shape :obj:`(batch_size, sequence_length)`.
-        use_cache (:obj:`bool`, `optional`):
-            If set to :obj:`True`, :obj:`past_key_values` key value states are returned and can be used to speed up
-            decoding (see :obj:`past_key_values`).
-        """
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -428,17 +399,6 @@ class BigBirdModelWithDoctype(BigBirdPreTrainedModel):
         ), f"Sequence length must be multiple of block size, but sequence length is {seq_length}, while block size is {block_size}."
 
         def create_band_mask_from_inputs(from_blocked_mask, to_blocked_mask):
-            """
-            Create 3D attention mask from a 2D tensor mask.
-            Args:
-                from_blocked_mask: 2D Tensor of shape [batch_size,
-                from_seq_length//from_block_size, from_block_size].
-                to_blocked_mask: int32 Tensor of shape [batch_size,
-                to_seq_length//to_block_size, to_block_size].
-            Returns:
-                float Tensor of shape [batch_size, 1, from_seq_length//from_block_size-4, from_block_size,
-                3*to_block_size].
-            """
             exp_blocked_to_pad = torch.cat(
                 [to_blocked_mask[:, 1:-3], to_blocked_mask[:, 2:-2], to_blocked_mask[:, 3:-1]], dim=2
             )
@@ -593,62 +553,6 @@ class BartDecoderWithDoctype(BartPretrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
-        r"""
-        Args:
-            input_ids (:obj:`torch.LongTensor` of shape :obj:`(batch_size, sequence_length)`):
-                Indices of input sequence tokens in the vocabulary. Padding will be ignored by default should you
-                provide it.
-                Indices can be obtained using :class:`~transformers.BartTokenizer`. See
-                :meth:`transformers.PreTrainedTokenizer.encode` and :meth:`transformers.PreTrainedTokenizer.__call__`
-                for details.
-                `What are input IDs? <../glossary.html#input-ids>`__
-            attention_mask (:obj:`torch.Tensor` of shape :obj:`(batch_size, sequence_length)`, `optional`):
-                Mask to avoid performing attention on padding token indices. Mask values selected in ``[0, 1]``:
-                - 1 for tokens that are **not masked**,
-                - 0 for tokens that are **masked**.
-                `What are attention masks? <../glossary.html#attention-mask>`__
-            encoder_hidden_states (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, encoder_sequence_length, hidden_size)`, `optional`):
-                Sequence of hidden-states at the output of the last layer of the encoder. Used in the cross-attention
-                of the decoder.
-            encoder_attention_mask (:obj:`torch.LongTensor` of shape :obj:`(batch_size, encoder_sequence_length)`, `optional`):
-                Mask to avoid performing cross-attention on padding tokens indices of encoder input_ids. Mask values
-                selected in ``[0, 1]``:
-                - 1 for tokens that are **not masked**,
-                - 0 for tokens that are **masked**.
-                `What are attention masks? <../glossary.html#attention-mask>`__
-            head_mask (:obj:`torch.Tensor` of shape :obj:`(decoder_layers, decoder_attention_heads)`, `optional`):
-                Mask to nullify selected heads of the attention modules. Mask values selected in ``[0, 1]``:
-                - 1 indicates the head is **not masked**,
-                - 0 indicates the head is **masked**.
-            cross_attn_head_mask (:obj:`torch.Tensor` of shape :obj:`(decoder_layers, decoder_attention_heads)`, `optional`):
-                Mask to nullify selected heads of the cross-attention modules in the decoder to avoid performing
-                cross-attention on hidden heads. Mask values selected in ``[0, 1]``:
-                - 1 indicates the head is **not masked**,
-                - 0 indicates the head is **masked**.
-            past_key_values (:obj:`tuple(tuple(torch.FloatTensor))`, `optional`, returned when ``use_cache=True`` is passed or when ``config.use_cache=True``):
-                Tuple of :obj:`tuple(torch.FloatTensor)` of length :obj:`config.n_layers`, with each tuple having 2
-                tensors of shape :obj:`(batch_size, num_heads, sequence_length, embed_size_per_head)`) and 2 additional
-                tensors of shape :obj:`(batch_size, num_heads, encoder_sequence_length, embed_size_per_head)`.
-                Contains pre-computed hidden-states (key and values in the self-attention blocks and in the
-                cross-attention blocks) that can be used (see :obj:`past_key_values` input) to speed up sequential
-                decoding.
-                If :obj:`past_key_values` are used, the user can optionally input only the last
-                :obj:`decoder_input_ids` (those that don't have their past key value states given to this model) of
-                shape :obj:`(batch_size, 1)` instead of all :obj:`decoder_input_ids`` of shape :obj:`(batch_size,
-                sequence_length)`.
-            inputs_embeds (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length, hidden_size)`, `optional`):
-                Optionally, instead of passing :obj:`input_ids` you can choose to directly pass an embedded
-                representation. This is useful if you want more control over how to convert :obj:`input_ids` indices
-                into associated vectors than the model's internal embedding lookup matrix.
-            output_attentions (:obj:`bool`, `optional`):
-                Whether or not to return the attentions tensors of all attention layers. See ``attentions`` under
-                returned tensors for more detail.
-            output_hidden_states (:obj:`bool`, `optional`):
-                Whether or not to return the hidden states of all layers. See ``hidden_states`` under returned tensors
-                for more detail.
-            return_dict (:obj:`bool`, `optional`):
-                Whether or not to return a :class:`~transformers.file_utils.ModelOutput` instead of a plain tuple.
-        """
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -788,12 +692,6 @@ class BartDecoderWithDoctype(BartPretrainedModel):
         )
 
 class EncoderDecoderModel(PreTrainedModel):
-    r"""
-    :class:`~transformers.EncoderDecoderModel` is a generic model class that will be instantiated as a transformer
-    architecture with one of the base model classes of the library as encoder and another one as decoder when created
-    with the :meth`~transformers.AutoModel.from_pretrained` class method for the encoder and
-    :meth`~transformers.AutoModelForCausalLM.from_pretrained` class method for the decoder.
-    """
     config_class = EncoderDecoderConfig
     base_model_prefix = "encoder_decoder"
 
@@ -923,27 +821,6 @@ class EncoderDecoderModel(PreTrainedModel):
         return_dict=None,
         **kwargs,
     ):
-        r"""
-        Returns:
-        Examples::
-            >>> from transformers import EncoderDecoderModel, BertTokenizer
-            >>> import torch
-            >>> tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-            >>> model = EncoderDecoderModel.from_encoder_decoder_pretrained('bert-base-uncased', 'bert-base-uncased') # initialize Bert2Bert from pre-trained checkpoints
-            >>> # training
-            >>> model.config.decoder_start_token_id = tokenizer.cls_token_id
-            >>> model.config.pad_token_id = tokenizer.pad_token_id
-            >>> model.config.vocab_size = model.config.decoder.vocab_size
-            >>> input_ids = tokenizer("This is a really long text", return_tensors="pt").input_ids
-            >>> labels = tokenizer("This is the corresponding summary", return_tensors="pt").input_ids
-            >>> outputs = model(input_ids=input_ids, labels=input_ids)
-            >>> loss, logits = outputs.loss, outputs.logits
-            >>> # save and load from pretrained
-            >>> model.save_pretrained("bert2bert")
-            >>> model = EncoderDecoderModel.from_pretrained("bert2bert")
-            >>> # generation
-            >>> generated = model.generate(input_ids)
-        """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         kwargs_encoder = {argument: value for argument, value in kwargs.items() if not argument.startswith("decoder_")}

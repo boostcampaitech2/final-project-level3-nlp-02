@@ -10,6 +10,7 @@ from transformers import (
     AutoModelForSeq2SeqLM,
     HfArgumentParser
 )
+from datasets import load_dataset
 
 from args import (
     ModelArguments,
@@ -17,6 +18,7 @@ from args import (
     GenerationArguments
 )
 
+from utils.processor import preprocess_function
 from models.modeling_kobigbird_bart import EncoderDecoderModel
 
 @contextmanager
@@ -50,35 +52,36 @@ def main() :
             from_tf=bool(".ckpt" in model_args.model_name_or_path),
             config=config,
         )
-    print(model)
+        model.config.output_attentions = True
     
     ### test 용 code ###
-    from dataloader import SumDataset
-    dataset_name = ['metamong1/summarization_paper']
     load_dotenv(dotenv_path=data_args.use_auth_token_path)
-    USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")
-    valid_dataset = SumDataset(
-        dataset_name,
-        'validation',
-        shuffle_seed=42,
-        ratio=0.5,
-        USE_AUTH_TOKEN=USE_AUTH_TOKEN
-    ).load_data()
+    USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")    
+    
+    dataset_name = "metamong1/summarization"
+    datasets = load_dataset(dataset_name + "_part" if data_args.is_part else dataset_name, use_auth_token=USE_AUTH_TOKEN)
+    valid_dataset = datasets['validation']
+    
     idx = 1600 ## 바꾸면서 test 해보세요!
     text = valid_dataset[idx]['text']
     title = valid_dataset[idx]['title']
     #####################
     # text = input("요약할 문장을 넣어주세요:")
 
-    raw_input_ids =  tokenizer(text, max_length=data_args.max_source_length, truncation=True)
-    input_ids = [tokenizer.bos_token_id] + raw_input_ids['input_ids'][:-2] + [tokenizer.eos_token_id]
-
+    input_ids = tokenizer(text, add_special_tokens=True)
+    
+    if model_args.use_model != "bigbart" :
+        input_ids = [tokenizer.bos_token_id] + input_ids['input_ids'][:-2] + [tokenizer.eos_token_id]
+    else :
+        input_ids = input_ids['input_ids']
+    
     num_beams = data_args.num_beams
     if num_beams is not None :
         generation_args.num_return_sequences = num_beams
 
     with timer('** Generate title **') :
-        summary_ids = model.generate(torch.tensor([input_ids]), num_beams=num_beams, **generation_args.__dict__)
+        summary_ids = model.generate(
+            torch.tensor([input_ids]), num_beams=num_beams, **generation_args.__dict__)
         print('** text: ', text)
         print('** title: ', title)
         if len(summary_ids.shape) == 1  or summary_ids.shape[0] == 1:

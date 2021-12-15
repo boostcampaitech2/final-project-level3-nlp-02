@@ -112,7 +112,7 @@ def cross_attention(model, tokenizer, text, generated_tokens) :
         autosize=False,
         width=1200,
         height=500,
-        yaxis_autorange="reversed"
+        yaxis_autorange="reversed",
         margin=dict(l=10, r=20, t=20, b=20)
     )
     go_fig.update_xaxes(tickangle = 45)

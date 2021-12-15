@@ -2,9 +2,11 @@ import time
 import re
 import streamlit as st
 
+
 from contextlib import contextmanager
 from predict import load, get_prediction
 from viz import text_highlight, cross_attention
+from postprocessing import TitlePostProcessor
 
 from GenerationArguments import GenerationArguments
 from IPython.core.display import HTML
@@ -22,24 +24,27 @@ st.set_page_config(layout="wide")
 
 root_password = 'password'
 
-def main():
+def main(args):
     st.title("Welcome in text generation website")
     st.balloons()
 
     st.info("제목 생성을 위한 본문 내용을 넣어주세요!\n")
-    
     beams_input = st.sidebar.slider('Number of beams search', 1, 5, 3, key='beams')
 
-    model_name = '/opt/ml/final-project-level3-nlp-02/model/baseV1.0_Kobart'
+    model_name = args.model
     with timer("load...") :
         tokenizer, model = load(model_name)
     input_text = st.text_area('Prompt:', height=400)
 
     if input_text :
         with timer("generate...") :
-            generated_tokens = get_prediction(tokenizer, model, input_text, beams_input, generation_args)
+            generated_tokens = get_prediction(tokenizer, model, model_name, input_text, beams_input, generation_args)
             titles = tokenizer.decode(generated_tokens.squeeze().tolist(), skip_special_tokens=True)
             titles = re.sub('</s> |</s>', '', titles)
+            
+            pcs = TitlePostProcessor(titles)
+            titles = pcs.post_process()
+            
             st.write(f'Titles: {titles}')
     
     if st.button('Attention Highlight'):
@@ -52,4 +57,12 @@ def main():
 
         fig = cross_attention(model, tokenizer, input_text, generated_tokens)
         st.plotly_chart(fig)
-main()
+
+if __name__ == "__main__" :
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model', type=str, default='../model/kobigbirdbart')
+    args = parser.parse_args()
+
+    main(args)

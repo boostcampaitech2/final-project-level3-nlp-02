@@ -2,16 +2,18 @@ import re
 import six
 import numpy as np
 import collections
-from utils import CustomMecab
 from rouge_score import rouge_scorer, scoring
 
+from konlpy.tag import Mecab
+from MeCab import Tagger
+from konlpy import utils
 
 def compute(predictions, references, tokenizer, rouge_types=None, use_agregator=True, filter_stop=None):
 	if rouge_types is None:
 		rouge_types = ["rouge1", "rouge2", "rougeL", "rougeLsum"]
 	
 	if filter_stop :
-		mecab = CustomMecab()
+		mecab = MecabForUsablePos()
 		predictions = " ".join(mecab.usable_pos(predictions))
 		references = " ".join(mecab.usable_pos(references))
 
@@ -54,6 +56,23 @@ def compute_metrics(eval_preds, tokenizer, data_args):
 	result["gen_len"] = np.mean(prediction_lens)
 	result = {k: round(v, 4) for k, v in result.items()}
 	return result
+
+class MecabForUsablePos(Mecab):
+    def __init__(self, dicpath='/usr/local/lib/mecab/dic/mecab-ko-dic'):
+        super(MecabForUsablePos).__init__()
+        self.dicpath = dicpath
+        try:
+            self.tagger = Tagger('-d %s' % dicpath)
+            self.tagset = utils.read_json('%s/data/tagset/mecab.json' % utils.installpath)
+        except RuntimeError:
+            raise Exception('The MeCab dictionary does not exist at "%s". Is the dictionary correctly installed?\nYou can also try entering the dictionary path when initializing the Mecab class: "Mecab(\'/some/dic/path\')"' % dicpath)
+        except NameError:
+            raise Exception('Install MeCab in order to use it: http://konlpy.org/en/latest/install/')
+    def usable_pos(self, phrase):
+        """Usable POS extractor."""
+        usable_tag = ('N','SN','SL') # 명사, 숫자, 외국어
+        tagged = self.pos(phrase)
+        return [s for s, t in tagged if t.startswith(usable_tag)]
 
 class CustomRouge(rouge_scorer.RougeScorer) :
 	""" 

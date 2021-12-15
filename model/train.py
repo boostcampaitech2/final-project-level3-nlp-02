@@ -15,12 +15,9 @@ from transformers import (
     AutoTokenizer,
     AutoConfig,
     AutoModelForSeq2SeqLM,
-    BartForConditionalGeneration,
     HfArgumentParser,
     EarlyStoppingCallback
 )
-
-from datasets import load_dataset
 
 from args import (
     DataTrainingArguments,
@@ -29,19 +26,12 @@ from args import (
     CustomSeq2SeqTrainingArguments
 )
 
-from rdrop_trainer import RdropTrainer
+from utils.trainer import Seq2SeqTrainerWithConditionalDocType
+from utils.data_collator import DataCollatorForSeq2SeqWithDocType
+from utils.processor import preprocess_function
+from utils.rouge import compute_metrics
+from optimization.knowledge_distillation import DistillationTrainer, TinyTrainer
 
-from rouge import compute_metrics
-
-from trainer import Seq2SeqTrainerWithConditionalDocType
-from data_collator import DataCollatorForSeq2SeqWithDocType
-from processor import preprocess_function
-from rouge import compute_metrics
-from knowledge_distillation import DistillationTrainer, TinyTrainer
-
-device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-
-from models.rebuilding_longformerbart import make_model_for_changing_postion_embedding
 from models.modeling_longformerbart import LongformerBartConfig, LongformerBartWithDoctypeForConditionalGeneration
 from models.modeling_kobigbird_bart import (
     EncoderDecoderModel, 
@@ -51,7 +41,6 @@ from models.modeling_kobigbird_bart import (
     BartDecoderWithDoctype
 )
 
-
 def seed_everything(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
@@ -60,8 +49,6 @@ def seed_everything(seed):
     torch.backends.cudnn.benchmark = False
     np.random.seed(seed)
     random.seed(seed)
-
-
     
 def main():
     ## Arguments setting
@@ -69,6 +56,7 @@ def main():
         (ModelArguments, DataTrainingArguments, LoggingArguments, CustomSeq2SeqTrainingArguments)
     )
     model_args, data_args, log_args, training_args = parser.parse_args_into_dataclasses()
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     
     
     seed_everything(training_args.seed)
@@ -76,7 +64,6 @@ def main():
         training_args.predict_with_generate = True
     print(f"** Train mode: { training_args.do_train}")
     print(f"** model is from {model_args.model_name_or_path}")
-    # print(f"** data is from {data_args.dataset_name}")
     print(f'** max_target_length:', data_args.max_target_length)
 
     if os.path.isdir(training_args.output_dir) and training_args.do_train and not training_args.overwrite_output_dir:
@@ -85,10 +72,7 @@ def main():
             "Use --overwrite_output_dir to overcome."
         )
 
-    ## load and process dataset
-    # types = data_args.dataset_name.split(',')
-    # data_args.dataset_name = ['metamong1/summarization_' + dt for dt in types]
-    
+    ## load and process dataset    
     load_dotenv(dotenv_path=data_args.use_auth_token_path)
     USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")    
     
@@ -112,25 +96,22 @@ def main():
 
     column_names = train_dataset.column_names
     if data_args.relative_eval_steps :
-        ## Train 동안 relative_eval_steps count 회수 만큼 evaluation 
-        ## 전체 iteration에서 eval 횟수로 나누어 evaluation step
+        # Train 동안 relative_eval_steps count 회수 만큼 evaluation 
+        # 전체 iteration에서 eval 횟수로 나누어 evaluation step
         iter_by_epoch = math.ceil(len(train_dataset)/(training_args.per_device_train_batch_size*training_args.gradient_accumulation_steps))
         training_args.num_training_steps =  iter_by_epoch * training_args.num_train_epochs
         training_args.eval_steps = int(training_args.num_training_steps // data_args.relative_eval_steps)
-        training_args.save_steps = training_args.eval_steps ## save step은 eval step의 배수여야 함
+        training_args.save_steps = training_args.eval_steps # save step은 eval step의 배수여야 함
 
     print(f"train_dataset length: {len(train_dataset)}")
     print(f"valid_dataset length: {len(valid_dataset)}")
     print(f"eval_steps: {training_args.eval_steps}")
 
     
-    #model별 config 호출
+    # model별 config 호출
     if model_args.use_model == "longbart":
         config = LongformerBartConfig.from_pretrained(
                 model_args.config_name if model_args.config_name else model_args.model_name_or_path)
-        
-        if not os.path.exists(training_args.model_path):
-            make_model_for_changing_postion_embedding(config,data_args,model_args)
 
         config.encoder_layers = model_args.encoder_layer_size
         config.decoder_layers = model_args.decoder_layer_size
@@ -148,7 +129,6 @@ def main():
         config["encoder"] = BigBirdConfigWithDoctype.from_pretrained("monologg/kobigbird-bert-base")
         config["decoder"] = BartConfigWithDoctype.from_pretrained("gogamza/kobart-base-v1")
         
-
         config["encoder"].encoder_layers = 6
         config["decoder"].vocab_size = config["encoder"].vocab_size
         config["decoder"].pad_token_id = config["encoder"].pad_token_id

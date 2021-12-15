@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from transformers import Seq2SeqTrainingArguments
-from transformers import Trainer, Seq2SeqTrainer
+from transformers import Seq2SeqTrainer
 
 class DistillationTrainingArguments(Seq2SeqTrainingArguments):
     def __init__(self, *args, alpha=0.5, temperature=2.0, use_original=False, **kwargs):

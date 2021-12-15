@@ -101,30 +101,29 @@
 
 ######### bigbirdbart ##########
 
-python train.py \
---model_name_or_path monologg/kobigbird-bert-base \
---use_model bigbart \
---do_train \
---output_dir checkpoint/kobigbirdbart_ep3_bs2_RD \
---overwrite_output_dir \
---num_train_epochs 3 \
---learning_rate 3e-05 \
---max_source_length 4096 \
---max_target_length 128 \
---metric_for_best_model rougeLsum \
---relative_eval_steps 10 \
---es_patience 3 \
---load_best_model_at_end True \
---project_name kobigbirdbart \
---wandb_unique_tag kobigbirdbart_ep3_bs2_RD \
---per_device_train_batch_size 2 \
---per_device_eval_batch_size 8 \
---is_part True \
---use_rdrop True \
---label_smoothing_factor 0.1 \
---num_samples 10
-# python predict.py \
-# --model_name_or_path /opt/ml/final_project/model/kobigbirdbart \
-# --tokenizer_name monologg/kobigbird-bert-base \
-# --num_beams 3 \
-# --use_model bigbart
+# python train.py \
+# --model_name_or_path monologg/kobigbird-bert-base \
+# --use_model bigbart \
+# --do_train \
+# --output_dir checkpoint/kobigbirdbart_ep3_bs8_lr1e4 \
+# --overwrite_output_dir \
+# --num_train_epochs 3 \
+# --learning_rate 1e-04 \
+# --max_source_length 4096 \
+# --max_target_length 128 \
+# --metric_for_best_model rougeLsum \
+# --relative_eval_steps 10 \
+# --es_patience 3 \
+# --load_best_model_at_end True \
+# --project_name kobigbirdbart \
+# --wandb_unique_tag kobigbirdbart_ep3_bs2_lr1e4 \
+# --per_device_train_batch_size 2 \
+# --gradient_accumulation_steps 4 \
+# --per_device_eval_batch_size 8 \
+# --is_part True 
+
+python predict.py \
+--model_name_or_path /opt/ml/final_project/model/checkpoint/kobigbirdbart \
+--tokenizer_name monologg/kobigbird-bert-base \
+--num_beams 3 \
+--use_model bigbart

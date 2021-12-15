@@ -1,34 +1,45 @@
+import sys
+sys.path.append('..')
+
 import streamlit as st
 import torch
 from typing import Tuple
-from transformers import BartTokenizerFast, BartForConditionalGeneration 
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+from model.models.modeling_kobigbird_bart import EncoderDecoderModel
+
+from model.models.modeling_longformerbart import LongformerBartWithDoctypeForConditionalGeneration
 
 @st.cache(allow_output_mutation=True)
-def load(model_name) -> Tuple[BartTokenizerFast, BartForConditionalGeneration] :
-    tokenizer = BartTokenizerFast.from_pretrained(
-        model_name
-    )
-    model = BartForConditionalGeneration.from_pretrained(
+def load(model_name) :
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    
+    if "longformerbart" in model_name:
+        model = LongformerBartWithDoctypeForConditionalGeneration.from_pretrained(model_name)
+    elif "kobigbirdbart" in model_name:
+        model = EncoderDecoderModel.from_pretrained(model_name, output_attentions=True)
+        model.encoder.encoder.layer = model.encoder.encoder.layer[:model.config.encoder.encoder_layers]
+    else:
+        model = AutoModelForSeq2SeqLM.from_pretrained(
         model_name,
         output_attentions=True,
     )
     return tokenizer, model
 
 def get_prediction(
-    tokenizer:BartTokenizerFast,
-    model: BartForConditionalGeneration,
-    input_text:str,
-    num_beam:int,
+    tokenizer: AutoTokenizer,
+    model: AutoModelForSeq2SeqLM,
+    model_name: str,
+    input_text: str,
+    num_beam: int,
     generation_args
     ) -> str:
     with st.spinner('Wait for it...'):
         with torch.no_grad():
-            encoder_input_ids = tokenizer(input_text, return_tensors="pt", add_special_tokens=True)
+            input_ids = tokenizer(input_text, return_tensors="pt", add_special_tokens=True)
+            if "bigbart" not in model_name :
+                input_ids = [tokenizer.bos_token_id] + input_ids['input_ids'][:-2] + [tokenizer.eos_token_id]
            
             generated_tokens = model.generate(
-                encoder_input_ids["input_ids"],
-                attention_mask=encoder_input_ids["attention_mask"],
-                num_beams=num_beam,
-                **generation_args.__dict__
-            )
+            torch.tensor([input_ids]), num_beams=num_beam, **generation_args.__dict__)
+
             return generated_tokens

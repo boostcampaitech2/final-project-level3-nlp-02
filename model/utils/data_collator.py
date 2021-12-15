@@ -82,6 +82,25 @@ class DataCollatorForTextInfillingDocType:
     def __call__(self, features: List[Union[List[int], torch.Tensor, Dict[str, torch.Tensor]]]
                  ) -> Dict[str, torch.Tensor]:
         # Handle dict or lists with proper padding and conversion to tensor.
+        doc_type_ids = [feature["doc_type_ids"] for feature in features] if "doc_type_ids" in features[0].keys() else None
+        if doc_type_ids is not None:
+            max_doc_type_length = max(len(l) for l in doc_type_ids)
+            padding_side = self.tokenizer.padding_side
+            for feature in features:
+                if  (max_doc_type_length % self.pad_to_multiple_of != 0) :
+                    max_doc_type_length = ((max_doc_type_length // self.pad_to_multiple_of) + 1) * self.pad_to_multiple_of
+
+                remainder = [0] * (max_doc_type_length - len(feature["doc_type_ids"]))
+                if isinstance(feature["doc_type_ids"], list):
+                    feature["doc_type_ids"] = (
+                        feature["doc_type_ids"] + remainder if padding_side == "right" else remainder + feature["doc_type_ids"]
+                    )
+                elif padding_side == "right":
+                    feature["doc_type_ids"] = np.concatenate([feature["doc_type_ids"], remainder]).astype(np.int64)
+                else:
+                    feature["doc_type_ids"] = np.concatenate([remainder, feature["doc_type_ids"]]).astype(np.int64)
+
+
         if isinstance(features[0], (dict, BatchEncoding)):
             batch = self.tokenizer.pad(features, return_tensors="pt", pad_to_multiple_of=self.pad_to_multiple_of)
         else:
@@ -105,7 +124,7 @@ class DataCollatorForTextInfillingDocType:
                     ) -> Tuple[torch.Tensor, torch.Tensor]:
         labels = input_ids.clone()
         new_doc_type_ids = doc_type_ids.clone()
-
+        
         if special_tokens_mask is None:
             special_tokens_mask = [
                 self.tokenizer.get_special_tokens_mask(val, already_has_special_tokens=True) for val in labels.tolist()
@@ -158,12 +177,13 @@ class DataCollatorForTextInfillingDocType:
             lengths -= 1
             masked_indices[remaining, 1] += 1
             remaining = (lengths > 0) & (masked_indices[:, 1] < max_index)
-
+        
         # place the mask tokens
         mask = mask.masked_fill_(special_tokens_mask, False)
         input_ids[mask.bool()] = self.tokenizer.mask_token_id
-        labels[~mask.bool()] = self.label_pad_token_id
-        
+        label_mask = labels == self.tokenizer.pad_token_id
+        labels[label_mask] = self.label_pad_token_id
+    
         # remove mask tokens that are not starts of spans
         to_remove = mask.bool() & mask.bool().roll(shifts=(0,1), dims=(0,1))
         new_input_ids = torch.full_like(input_ids, fill_value=self.tokenizer.pad_token_id)
@@ -175,7 +195,6 @@ class DataCollatorForTextInfillingDocType:
             
             doc_type_ids_ = doc_type_ids[i][~to_remove[i]]
             new_doc_type_ids[i, 0:doc_type_ids_.shape[0]] = doc_type_ids_
-
 
         # return new_input_ids, labels, {"doc_type_ids" : doc_type_ids,"new_doc_type_ids" : new_doc_type_ids,"to_remove" : to_remove}
         return new_input_ids, labels, new_doc_type_ids

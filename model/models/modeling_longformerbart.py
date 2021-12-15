@@ -26,6 +26,8 @@ from transformers.models.bart.modeling_bart import (
     BartLearnedPositionalEmbedding,
     shift_tokens_right,
 )
+
+
 class LongformerBartConfig(BartConfig):
     pad_token_id_idx = 4 # pad token id in Bart Tokenizer
     def __init__(self,
@@ -58,10 +60,9 @@ class LongformerBartConfig(BartConfig):
         self.decoder_attention_heads = decoder_attention_heads
         self.doc_type_size = doc_type_size
         
-        # del self.classif_dropout 
-        # del self.extra_pos_embeddings
         del self.id2label
         del self.label2id
+
 
 class LongformerSelfAttentionForBart(nn.Module):
     def __init__(self, config:LongformerBartConfig, layer_id:int):
@@ -105,7 +106,8 @@ class LongformerSelfAttentionForBart(nn.Module):
             attn_output += (None, None,)
             
         return attn_output
-        
+
+
 class LongformerBartEncoderLayer(nn.Module):
     def __init__(self, config: LongformerBartConfig, layer_id: int):
         super().__init__()
@@ -204,22 +206,7 @@ class LongformerBartEncoderWithDocType(BartPretrainedModel):
 
         
         self.gradient_checkpointing = False
-        # Initialize weights and apply final processing
-        self.init_weights()
-    
-    # def post_init(self):
-    #     """
-    #     A method executed at the end of each Transformer model initialization, to execute code that needs the model's
-    #     modules properly initialized (such as weight initialization).
-    #     """
-    #     self.init_weights()
-    #     self._backward_compatibility_gradient_checkpointing()
-    
-    # def _backward_compatibility_gradient_checkpointing(self):
-    #     if self.supports_gradient_checkpointing and getattr(self.config, "gradient_checkpointing", False):
-    #         self.gradient_checkpointing_enable()
-    #         # Remove the attribute now that is has been consumed, so it's no saved in the config.
-    #         delattr(self.config, "gradient_checkpointing")
+        self.init_weights() # Initialize weights and apply final processing
         
     def get_input_embeddings(self):
         return self.embed_tokens
@@ -252,7 +239,6 @@ class LongformerBartEncoderWithDocType(BartPretrainedModel):
         return_dict=None,
     ):
 
-        # encoder layer에 정의가 되어서 들어가야 함
         is_index_masked = attention_mask < 0
         device = attention_mask.device
         is_index_global_attn = self.get_is_index_global_attn(attention_mask).to(device)
@@ -282,12 +268,6 @@ class LongformerBartEncoderWithDocType(BartPretrainedModel):
         hidden_states = inputs_embeds + embed_pos + doc_type
         hidden_states = self.layernorm_embedding(hidden_states)
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
-
-        # longformer self attention 내부에서 따로 처리 -> expand mask가 필요 없음
-        # # expand attention_mask
-        # if attention_mask is not None:
-        #     # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
-        #     attention_mask = _expand_mask(attention_mask, inputs_embeds.dtype) # encoder padding mask
 
         encoder_states = () if output_hidden_states else None
         all_attentions_local = () if output_attentions else None
@@ -382,8 +362,6 @@ class LongformerBartSeq2SeqModelOutput(ModelOutput):
     encoder_attentions_global: Optional[Tuple[torch.FloatTensor]] = None
 
 
-
-
 class CustomBartDecoder(BartDecoder):
     def __init__(self,config: BartConfig, embed_tokens: Optional[nn.Embedding] = None):
         super().__init__(config, embed_tokens)
@@ -407,6 +385,7 @@ class CustomBartDecoder(BartDecoder):
 
         self.init_weights()
         self.gradient_checkpointing = False
+
 
 class LongformerBartWithDoctypeForConditionalGeneration(BartPretrainedModel):
     def __init__(self,config: LongformerBartConfig):
@@ -574,20 +553,6 @@ class LongformerBartWithDoctypeForConditionalGeneration(BartPretrainedModel):
             output = (lm_logits,) + decoder_outputs + encoder_outputs
             return ((masked_lm_loss,) + output) if masked_lm_loss is not None else output
 
-        # return Seq2SeqLMOutput(
-        #     loss=masked_lm_loss,
-        #     logits=lm_logits,
-        #     past_key_values=decoder_outputs.past_key_values,
-        #     decoder_hidden_states=decoder_outputs.decoder_hidden_states,
-        #     decoder_attentions=decoder_outputs.decoder_attentions,
-        #     cross_attentions=decoder_outputs.cross_attentions,
-        #     encoder_last_hidden_state=decoder_outputs.encoder_last_hidden_state,
-        #     encoder_hidden_states=decoder_outputs.encoder_hidden_states,
-        #     encoder_attentions_local=decoder_outputs.encoder_attentions_local,
-        #     encoder_attentions_global=decoder_outputs.attentions_global
-        # )
-
-        # 인코더와 디코더의 출력을 각각 가져와야 할 것 같습니다.
         return LongformerBartSeq2SeqModelOutput(
             loss=masked_lm_loss,
             logits=lm_logits,
