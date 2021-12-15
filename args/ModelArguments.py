@@ -37,3 +37,59 @@ class ModelArguments :
         metadata={
             "help": "Whether to use r-drop when fine-tuning"}
     )
+    attention_window_size: int = field(
+        default=256,
+        metadata={
+            "help": "attention window size"
+        },
+    )
+    longformerbart_path: str = field(
+        default='./model/longformerbart',
+        metadata={
+            "help": "path for loading longformerbart model"
+        },
+    )
+    hidden_size: int = field(
+        default=128,
+        metadata={
+            "help": "hidden dimension size / h_model size"
+        },
+    )
+    encoder_layer_size: int = field(
+        default=3,
+        metadata={
+            "help": "number of encoder layers"
+        },
+    )
+    decoder_layer_size: int = field(
+        default=3,
+        metadata={
+            "help": "number of decoder layers"
+        },
+    )
+    attention_head_size: int = field(
+        default=4,
+        metadata={"help": "number of attention heads"},
+    )
+    attention_window_size: int = field(
+        default=256,
+        metadata={
+            "help": "attention window size"
+        },
+    )
+    dropout: float = field(
+        default=0.1,
+        metadata={
+            "help":"dropout ratio"
+        },
+    )
+    use_kobigbird_bart: bool = field(
+        default=False,
+        metadata={"help": "use kobigbird encoder and bart decoder"},
+    )
+
+    use_model: str = field(
+        default='auto',
+        metadata={"help": "model type(pretrained model from huggingface, customized bigbart, customized longbart), [auto, bigbart, longbart]"},
+    )
+    

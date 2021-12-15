@@ -1,9 +1,8 @@
-__pycache__/**
-args/__pycache__
+__pycache__
+data/**
 wandb/**
-model/**
+model/*
 evaluation/**
-
 *.env
 *.ipynb
 
@@ -11,3 +10,4 @@ exp*
 viz_requirement.sh
 
 encoder_decoder_pruned*
+modeling_bart.py
