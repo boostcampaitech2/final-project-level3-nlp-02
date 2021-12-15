@@ -15,18 +15,32 @@ pip install python-dotenv
 apt-get install tmux -y
 pip install wandb
 
+# for rouge
+pip install rouge-score
+pip install absl-py
+pip install nltk
+pip install numpy
+pip install six>=1.14
+
+# for viz
+pip install bertviz
+pip install jupyter-dash
+pip install plotly
+pip install jupyter-dash
+pip install streamlit==1.1.0
+
 # ### NLP task
-# pip install tweepy==3.9.0
-# pip install konlpy
+pip install kss
+pip install tweepy==3.9.0
+pip install konlpy
 
 # install mecab
-# apt-get install sudo
-# sudo apt install g++ -y
-# sudo apt update
-# sudo apt install default-jre -y
-# sudo apt install default-jdk -y
-# sudo apt install npm -y
-# sudo apt install nodejs
+# apt install g++ -y
+# apt update
+# apt install default-jre -y
+# apt install default-jdk -y
+# apt install npm -y
+# apt install nodejs
 # apt-get install build-essentials
 
 # npm cache clean -f
@@ -40,17 +54,16 @@ pip install wandb
 # ./configure
 # make
 # make check
-# sudo make install
-# sudo ldconfig
+# make install
+# ldconfig
 # cd ~
 # wget https://bitbucket.org/eunjeon/mecab-ko-dic/downloads/mecab-ko-dic-2.1.1-20180720.tar.gz
 # tar xvfz mecab-ko-dic-2.1.1-20180720.tar.gz
 # cd mecab-ko-dic-2.1.1-20180720
 # ./configure
 # make
-# sudo make install
+# make install
 # cd ~
 # apt install curl
-# apt install git
 # bash <(curl -s https://raw.githubusercontent.com/konlpy/konlpy/master/scripts/mecab.sh)
 # pip install mecab-python

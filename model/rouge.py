@@ -2,11 +2,18 @@ import re
 import six
 import numpy as np
 import collections
+from utils import CustomMecab
 from rouge_score import rouge_scorer, scoring
 
-def compute(predictions, references, tokenizer, rouge_types=None, use_agregator=True, ):
+
+def compute(predictions, references, tokenizer, rouge_types=None, use_agregator=True, filter_stop=None):
 	if rouge_types is None:
 		rouge_types = ["rouge1", "rouge2", "rougeL", "rougeLsum"]
+	
+	if filter_stop :
+		mecab = CustomMecab()
+		predictions = " ".join(mecab.usable_pos(predictions))
+		references = " ".join(mecab.usable_pos(references))
 
 	scorer = CustomRouge(rouge_types=rouge_types, tokenizer=tokenizer)
 	if use_agregator:
@@ -39,7 +46,7 @@ def compute_metrics(eval_preds, tokenizer, data_args):
 		labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
 	decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
 	# Some simple post-processing
-	result = compute(predictions=decoded_preds, references=decoded_labels, tokenizer=tokenizer)
+	result = compute(predictions=decoded_preds, references=decoded_labels, tokenizer=tokenizer, filter_stop=data_args.compute_filter_stopwords)
 	# Extract a few results from ROUGE
 	result = {key: value.mid.fmeasure * 100 for key, value in result.items()}
 

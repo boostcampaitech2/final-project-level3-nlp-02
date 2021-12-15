@@ -72,3 +72,34 @@ class CustomSeq2SeqTrainingArguments(Seq2SeqTrainingArguments):
         metadata={
             "help": "Whether to use r-drop when fine-tuning"}
     )
+    # Arguments for distillation
+    alpha: float = field(
+        default=0.5,
+        metadata={
+            "help": "alpha value for distillation methods(default: 0.5)"
+        }
+    )
+    temperature: float = field(
+        default=1.0,
+        metadata={
+            "help": "temperature value for distillation methods(default: 1.0)"
+        }
+    )
+    use_original: bool = field(
+        default=False,
+        metadata={
+            "help": "whether to use original prediction loss as paper for tiny distillation(default: False)"
+        }
+    )
+    distillation_type: str = field(
+        default=None,
+        metadata={
+            "help": "which distillation method to use (ex. distil, tiny, None) (defualt: None)"
+        }
+    )
+    teacher_check_point: str = field(
+        default=None,
+        metadata={
+            "help": "which teacher model to use(default: None)"
+        }
+    )

@@ -63,21 +63,49 @@ def cross_attention(model, tokenizer, text, generated_tokens) :
     layer_mat = st_cross_attention.detach()
     last_h_layer_mat = torch.mean(layer_mat, 1)[-1] ## mean by head side, last layer
 
-    
+    i = 0
+    dec_split_words_indices = []
+    for token in decoder_text :
+        if '▁' in token:
+            dec_split_words_indices.append(i)
+            i = 1
+        else : 
+            i += 1
+    dec_split_words_indices.append(i)
+    dec_split_words_indices = dec_split_words_indices[1:]
 
-    encoder_text = [et.replace('▁','') for et in encoder_text]
-    decoder_text = [dt.replace('▁','') for dt in decoder_text]
+    i = 0
+    enc_split_words_indices = []
+    for token in encoder_text :
+        if '▁' in token:
+            enc_split_words_indices.append(i)
+            i = 1
+        else : 
+            i += 1
+    enc_split_words_indices.append(i)
+    enc_split_words_indices = enc_split_words_indices[1:]
 
-    st_cross_attention = format_attention(outputs.cross_attentions)
+    new_dec_text = ''.join(decoder_text).replace('▁', ' ')
+    new_enc_text = ''.join(encoder_text).replace('▁', ' ')
+    new_dec_tokens = new_dec_text.split(' ')[1:]
+    new_enc_tokens = new_enc_text.split(' ')[1:]
 
-    layer_mat = st_cross_attention.detach()
-    last_h_layer_mat = torch.mean(layer_mat, 1)[-1] ## mean by head side, last layer
-    # enc_mat = torch.mean(last_h_layer_mat, 0) ## mean by decoder id side
+    splited_by_spaces = torch.split(layer_mat, dec_split_words_indices, dim=0)
+    merging_tensor = []
+    for split_tensor in splited_by_spaces :
+        merging_tensor.append(torch.mean(split_tensor, 0))
+    merged_attn = torch.stack(merging_tensor, dim=0)
+
+    splited_by_spaces = torch.split(merged_attn, enc_split_words_indices, dim=1)
+    merging_tensor = []
+    for split_tensor in splited_by_spaces :
+        merging_tensor.append(torch.mean(split_tensor, 1))
+    merged_attn = torch.stack(merging_tensor, dim=1)
 
     go_fig = go.Figure(go.Heatmap(
-                    z=last_h_layer_mat,
-                    x=encoder_text,
-                    y=decoder_text,
+                    z=merged_attn,
+                    x=new_enc_tokens,
+                    y=new_dec_tokens,
                     colorscale='Reds',
                     hoverongaps=False))
     go_fig.update_layout(
@@ -85,6 +113,7 @@ def cross_attention(model, tokenizer, text, generated_tokens) :
         width=1200,
         height=500,
         yaxis_autorange="reversed"
+        margin=dict(l=10, r=20, t=20, b=20)
     )
     go_fig.update_xaxes(tickangle = 45)
     return go_fig

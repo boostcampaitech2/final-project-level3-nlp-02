@@ -37,6 +37,9 @@ from trainer import Seq2SeqTrainerWithConditionalDocType
 from data_collator import DataCollatorForSeq2SeqWithDocType
 from processor import preprocess_function
 from rouge import compute_metrics
+from knowledge_distillation import DistillationTrainer, TinyTrainer
+
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 from models.rebuilding_longformerbart import make_model_for_changing_postion_embedding
 from models.modeling_longformerbart import LongformerBartConfig, LongformerBartWithDoctypeForConditionalGeneration
@@ -232,7 +235,39 @@ def main():
     wandb.config.update(training_args)
     
     comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
-    trainer = Seq2SeqTrainerWithConditionalDocType(
+    
+    if training_args.distillation_type == 'distil':
+        print('DistillationTrainer is used!!!')
+        teacher_config = AutoConfig.from_pretrained(training_args.teacher_check_point)
+        teacher_model=AutoModelForSeq2SeqLM.from_pretrained(training_args.teacher_check_point, config=teacher_config).to(device)
+        trainer = DistillationTrainer(
+            args=training_args,
+            teacher_model = teacher_model,
+            train_dataset=train_dataset,
+            eval_dataset=valid_dataset,
+            tokenizer=tokenizer,
+            data_collator=data_collator,
+            compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
+            model_init=model_init, ## model 성능 재현
+            callbacks = [EarlyStoppingCallback(early_stopping_patience=training_args.es_patience)] if training_args.es_patience else None
+        )
+    elif training_args.distillation_type == 'tiny':
+        print('TinyTrainer is used!!!')
+        teacher_config = AutoConfig.from_pretrained(training_args.teacher_check_point)
+        teacher_model=AutoModelForSeq2SeqLM.from_pretrained(training_args.teacher_check_point, config=teacher_config).to(device)
+        trainer = TinyTrainer(
+            args=training_args,
+            teacher_model = teacher_model,
+            train_dataset=train_dataset,
+            eval_dataset=valid_dataset,
+            tokenizer=tokenizer,
+            data_collator=data_collator,
+            compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
+            model_init=model_init, ## model 성능 재현
+            callbacks = [EarlyStoppingCallback(early_stopping_patience=training_args.es_patience)] if training_args.es_patience else None
+        )
+    else:
+        trainer = Seq2SeqTrainerWithConditionalDocType(
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=valid_dataset,
