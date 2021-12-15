@@ -14,6 +14,8 @@ def preprocess_function(examples:datasets,
                         data_args) -> datasets:
                         
     pad_token_id = tokenizer.pad_token_id
+    bos_token_id = tokenizer.bos_token_id
+    eos_token_id = tokenizer.eos_token_id
     max_source_length = data_args.max_source_length
     max_target_length = data_args.max_target_length
     padding = "max_length" if data_args.pad_to_max_length else False
@@ -30,15 +32,18 @@ def preprocess_function(examples:datasets,
     inputs_padding_bool = (padding == "max_length")
     doc_type_ids = []
     for i in range(len(model_inputs['input_ids'])) :
-        if inputs_padding_bool:
-            model_inputs["attention_mask"][i] = add_padding(sample_tokens=model_inputs["attention_mask"][i],
-                                                            padding=inputs_padding_bool,
-                                                            padding_num= pad_token_id,
-                                                            max_length=max_target_length) 
-            model_inputs["input_ids"][i] = add_padding(sample_tokens=model_inputs["input_ids"][i],
-                                                            padding=inputs_padding_bool,
-                                                            padding_num= pad_token_id,
-                                                            max_length=max_target_length)
+        model_inputs["attention_mask"][i] = add_padding(sample_tokens=model_inputs["attention_mask"][i],
+                                                        padding=inputs_padding_bool,
+                                                        padding_num= pad_token_id,
+                                                        max_length=max_target_length,
+                                                        bos_token_id = bos_token_id,
+                                                        eos_token_id = eos_token_id) 
+        model_inputs["input_ids"][i] = add_padding(sample_tokens=model_inputs["input_ids"][i],
+                                                        padding=inputs_padding_bool,
+                                                        padding_num= pad_token_id,
+                                                        max_length=max_target_length,
+                                                        bos_token_id = bos_token_id,
+                                                        eos_token_id = eos_token_id)
         
         if data_args.use_doc_type_ids:
             doc_type_id_list = get_doc_type_ids(model_inputs["attention_mask"][i], doc_type_dict[doc_types[i]])
@@ -70,14 +75,20 @@ def get_doc_type_ids(sample_tokens:List[int],
     sample_tokens = np.array(sample_tokens)
     doc_type_id_list = list(np.where(sample_tokens == 1, doc_type_id, 0))
     return doc_type_id_list
-
+    
 def add_padding(sample_tokens:List[int],
                 padding:bool,
                 padding_num:int,
-                max_length:Optional[int]) -> List:
+                max_length:Optional[int],
+                bos_token_id:int,
+                eos_token_id:int) -> List:
     sample_tokens_len = len(sample_tokens)
-    if padding:
-        while len(sample_tokens_len) < max_length :
-            sample_tokens += [padding_num] * (max_length-sample_tokens_len)
+    if len(sample_tokens) > max_length - 2:
+        if bos_token_id == 0: #bart tokenizer만 진행
+            sample_tokens = [bos_token_id] + sample_tokens[:max_length-2] + [eos_token_id]
+    else:
+        if bos_token_id == 0: #bart tokenizer만 진행
+            sample_tokens = [bos_token_id] + sample_tokens + [eos_token_id] + [padding_num]*(max_length-sample_tokens_len-2)
+        if padding:
+            sample_tokens = sample_tokens + [padding_num]*(max_length-sample_tokens_len-2)
     return sample_tokens
-    
