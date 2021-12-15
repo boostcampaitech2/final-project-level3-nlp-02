@@ -713,9 +713,7 @@ class EncoderDecoderModel(PreTrainedModel):
         super().__init__(config)
 
         if encoder is None:
-            from transformers.models.auto.modeling_auto import AutoModel
-
-            encoder = AutoModel.from_config(config.encoder)
+            encoder = BigBirdModelWithDoctype(config.encoder)
 
         if decoder is None:
             decoder = BartDecoderWithDoctype(config.decoder)
