@@ -9,3 +9,5 @@ evaluation/**
 
 exp*
 viz_requirement.sh
+
+encoder_decoder_pruned*
