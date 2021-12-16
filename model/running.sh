@@ -126,9 +126,15 @@ python train.py \
 # --is_noam True \
 # --warmup_steps 2000
 
+<<<<<<< HEAD
+python predict.py \
+--model_name_or_path checkpoint/baseV1.0_Kobart \
+--num_beams 3
+=======
 
 # python predict.py \
 # --model_name_or_path /opt/ml/final_project/model/checkpoint/kobigbirdbart \
 # --tokenizer_name monologg/kobigbird-bert-base \
 # --num_beams 3 \
+>>>>>>> dev
 # --use_model bigbart

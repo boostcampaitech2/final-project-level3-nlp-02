@@ -28,6 +28,7 @@ def pair_check(text) -> str:
 class TitlePostProcessor :
     def __init__(self, title) :
         self.escaped_space = re.compile(r'\\r|\\n|\\\r|\\\n')
+        self.special_char = re.compile(r' -|·$')
         self.title = title
     
     def post_process(self) :
@@ -48,7 +49,7 @@ class TitlePostProcessor :
         titles = split_sentences(title)
         title = "".join(titles[:-1]) if len(titles) != 1 else titles[0]
         title = title.rstrip()
-        title = title[:-2] if title[-2:] == ' -' else title 
+        title = self.special_char.sub('', title)
         return title
 
 if __name__ == "__main__" :

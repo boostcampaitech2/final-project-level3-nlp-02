@@ -39,30 +39,31 @@ def main(args):
     if input_text :
         with timer("generate...") :
             generated_tokens = get_prediction(tokenizer, model, model_name, input_text, beams_input, generation_args)
-            titles = tokenizer.decode(generated_tokens.squeeze().tolist(), skip_special_tokens=True)
-            titles = re.sub('</s> |</s>', '', titles)
+            title = tokenizer.decode(generated_tokens.squeeze().tolist(), skip_special_tokens=True)
+            title = re.sub('</s> |</s>|[CLS] | [SEP]', '', title)
             
-            pcs = TitlePostProcessor(titles)
-            titles = pcs.post_process()
+            pcs = TitlePostProcessor(title)
+            title = pcs.post_process()
             
-            st.write(f'Titles: {titles}')
+            st.write(f'Titles: {title}')
     
     if st.button('Attention Highlight'):
-        highlighted_text = text_highlight(model, tokenizer, input_text, generated_tokens)
+        highlighted_text = text_highlight(model, tokenizer, input_text, title)
         col1, col2 = st.columns([2, 2])
         
     
         col1.write(HTML(highlighted_text))
-        col2.write(titles)
+        col2.write(title)
 
-        fig = cross_attention(model, tokenizer, input_text, generated_tokens)
+        fig = cross_attention(model, tokenizer, input_text, title, args.use_model)
         st.plotly_chart(fig)
 
 if __name__ == "__main__" :
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='../model/kobigbirdbart')
+    parser.add_argument('--model', type=str, default='../model/checkpoint/baseV1.0_Kobart')
+    parser.add_argument('--use_model', type=str, default='kobart', help='bigbart or etc')
     args = parser.parse_args()
 
     main(args)
