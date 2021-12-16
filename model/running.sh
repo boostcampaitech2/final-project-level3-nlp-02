@@ -123,7 +123,6 @@
 # --is_part True 
 
 python predict.py \
---model_name_or_path /opt/ml/final_project/model/checkpoint/kobigbirdbart \
---tokenizer_name monologg/kobigbird-bert-base \
---num_beams 3 \
---use_model bigbart
+--model_name_or_path checkpoint/baseV1.0_Kobart \
+--num_beams 3
+# --use_model bigbart
