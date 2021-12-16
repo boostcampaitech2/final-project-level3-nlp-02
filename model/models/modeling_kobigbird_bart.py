@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import random
 import math
+import numpy as np
 from typing import Optional
 from packaging import version
 from transformers.utils import logging
@@ -734,6 +735,9 @@ class EncoderDecoderModel(PreTrainedModel):
         # so that the updates to the config will be synced
         self.encoder.config = self.config.encoder
         self.decoder.config = self.config.decoder
+        self.num_training_steps = self.decoder.config.num_training_steps if "num_training_steps" in dir(self.decoder.config) else None
+        self.cur_training_steps = 0
+
 
         # encoder outputs might need to be projected to different dimension for decoder
         if (
@@ -819,6 +823,14 @@ class EncoderDecoderModel(PreTrainedModel):
         return_dict=None,
         **kwargs,
     ):
+
+        if self.num_training_steps is None:
+            teacher_training_ratio = 100
+        else:
+            self.cur_training_steps += 1
+            teacher_training_ratio = (self.num_training_steps - self.cur_training_steps) / self.num_training_steps
+        use_outputs_ratio = np.random.rand()
+
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         kwargs_encoder = {argument: value for argument, value in kwargs.items() if not argument.startswith("decoder_")}
@@ -852,6 +864,35 @@ class EncoderDecoderModel(PreTrainedModel):
             decoder_input_ids = shift_tokens_right(
                 labels, self.decoder.config.pad_token_id, self.decoder.config.decoder_start_token_id
             )
+
+        # 1-stage decoder
+        if teacher_training_ratio < use_outputs_ratio:
+            self.decoder.eval()
+            decoder_outputs = self.decoder(
+                input_ids=decoder_input_ids,
+                attention_mask=decoder_attention_mask,
+                encoder_hidden_states=encoder_hidden_states,
+                encoder_attention_mask=attention_mask,
+                inputs_embeds=decoder_inputs_embeds,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                use_cache=use_cache,
+                past_key_values=past_key_values,
+                return_dict=return_dict,
+                **kwargs_decoder,
+            )
+
+            decoder_hidden_states = decoder_outputs[0] # (batch_size, seq_size, hidden_size) 
+            lm_logits = self.lm_head(decoder_hidden_states) + self.final_logits_bias # (batch_size, seq_size, vocab_size)
+            lm_logits_softmax = torch.softmax(lm_logits, dim=-1) # (batch_size, seq_size, vocab_size)
+            prediction_output_ids = torch.argmax(lm_logits_softmax,dim=-1) # (batch_size, seq_size)
+            is_teacher_forcing = torch.bernoulli(torch.rand_like(decoder_input_ids.float())).bool()
+            decoder_input_ids[~is_teacher_forcing] = prediction_output_ids[~is_teacher_forcing] 
+            del lm_logits
+            del lm_logits_softmax
+            del prediction_output_ids
+            del is_teacher_forcing
+            del decoder_hidden_states
 
         # Decode
         decoder_outputs = self.decoder(

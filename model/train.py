@@ -133,6 +133,8 @@ def main():
         config["decoder"].vocab_size = config["encoder"].vocab_size
         config["decoder"].pad_token_id = config["encoder"].pad_token_id
         config["decoder"].max_position_embeddings = data_args.max_target_length
+        if training_args.use_teacher_forcing :
+            config["decoder"].num_training_steps = training_args.num_training_steps
         training_args.model_config = config["decoder"]
 
         if data_args.use_doc_type_ids :
