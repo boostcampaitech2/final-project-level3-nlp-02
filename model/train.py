@@ -27,6 +27,7 @@ from args import (
 )
 
 from utils.trainer import Seq2SeqTrainerWithConditionalDocType
+from utils.data_preprocessor import Preprocessor, Filter
 from utils.data_collator import DataCollatorForSeq2SeqWithDocType
 from utils.processor import preprocess_function
 from utils.rouge import compute_metrics
@@ -78,6 +79,13 @@ def main():
     
     dataset_name = "metamong1/summarization"
     datasets = load_dataset(dataset_name + "_part" if data_args.is_part else dataset_name, use_auth_token=USE_AUTH_TOKEN)
+    data_preprocessor = Preprocessor()
+    data_filter = Filter(min_size=5, max_size=100)
+
+    ## data preprocessing
+    datasets = datasets.map(data_preprocessor.for_train)
+    datasets = datasets.filter(data_filter)
+
     train_dataset = datasets['train']
     valid_dataset = datasets['validation']
 
