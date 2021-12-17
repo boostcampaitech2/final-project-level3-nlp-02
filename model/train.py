@@ -156,7 +156,7 @@ def main():
         config.attention_probs_dropout_prob= 0.1
         config.intermediate_size= 3072
         config.hidden_act="gelu"
-        config.decoder_start_token_id = torch.tensor(2)
+        config.decoder_start_token_id = 2 # cls_token_id
         config.is_encoder_decoder = True
         config.use_cache = True
     else :
