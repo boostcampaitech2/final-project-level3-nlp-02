@@ -4,34 +4,35 @@
 ## 학습 파라미터 : epoch, weight decay, learning rate, warmup steps
 
 ########## pretraining #################
-# python pretrain.py \
-# --do_train \
-# --is_pretrain \
-# --output_dir model/longformerbart_pretrain_V1_trial3 \
-# --num_train_epochs 10 \
-# --logging_steps 2000 \
-# --save_strategy epoch \
-# --evaluation_strategy no \
-# --max_source_length 2048 \
-# --max_target_length 2048 \
+--output_dir checkpoint/longformerbart_44_512_no_teacehr_no_doctype_no_noam\
+python pretrain.py \
+--do_train \
+--is_pretrain \
+--num_train_epochs 5 \
+--output_dir chekcpoint/test \
+--overwrite_output_dir \
+--logging_steps 2000 \
+--save_strategy epoch \
+--evaluation_strategy no \
+--max_source_length 2048 \
+--max_target_length 2048 \
 # --project_name longformerbart \
-# --per_device_train_batch_size 2 \
-# --gradient_accumulation_steps 4 \
-# --wandb_unique_tag longformerBart_pretraining_V1 \
-# --hidden_size 128 \
-# --encoder_layer_size 3 \
-# --decoder_layer_size 3 \
-# --attention_head_size 4 \
-# --attention_window_size 32 \
-# --dropout 0.5 \
-# --learning_rate 0.11 \
-# --warmup_steps 10000 \
-# --weight_decay 1e-2 \
-# --adam_beta1  0.9 \
-# --adam_beta2  0.999 \
-# --adam_epsilon 1e-06 \
-# --num_samples 10 \
-# --is_noam
+--per_device_train_batch_size 4 \
+--gradient_accumulation_steps 4 \
+# --wandb_unique_tag longformerBart_pretraining_V1_512_no_noam \
+--hidden_size 512 \
+--encoder_layer_size 4 \
+--decoder_layer_size 4 \
+--attention_head_size 4 \
+--attention_window_size 64 \
+--dropout 0.1 \
+--learning_rate 1e-4 \
+--warmup_steps 10000 \
+--weight_decay 1e-4 \
+--adam_beta1  0.9 \
+--adam_beta2  0.98 \
+--adam_epsilon 1e-06 \
+--use_doc_type_ids True
 
 
 # 1. h_dim 128/256 => 논문 => 128 / 256

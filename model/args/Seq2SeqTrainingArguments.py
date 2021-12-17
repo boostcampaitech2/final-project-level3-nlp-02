@@ -110,3 +110,9 @@ class CustomSeq2SeqTrainingArguments(Seq2SeqTrainingArguments):
             "help": "which teacher model to use(default: None)"
         }
     )
+    use_teacher_forcing: bool = field(
+        default=False,
+        metadata={
+            "help": "wheter to apply teacher forcing"
+        }
+    )
