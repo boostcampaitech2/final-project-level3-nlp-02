@@ -48,6 +48,7 @@
 ## 시도해볼 부분: epoch 수정해보기
 ## 변경 필요한 arguments: output_dir
 
+<<<<<<< HEAD
 # python train.py \
 # --do_train \
 # --output_dir checkpoint/rdroptest_nolabelsmoothed \
@@ -65,6 +66,25 @@
 # --num_samples 10 \
 # --overwrite_output_dir \
 # --use_rdrop True
+=======
+python train.py \
+--do_train \
+--output_dir checkpoint/rdroptest_nolabelsmoothed \
+--num_train_epochs 100 \
+--learning_rate 3e-05 \
+--max_source_length 1024 \
+--max_target_length 128 \
+--metric_for_best_model rougeLsum \
+--relative_eval_steps 10 \
+--es_patience 3 \
+--load_best_model_at_end True \
+--project_name baseV1.0_Kobart \
+--wandb_unique_tag rdroptest_nolabelsmoothed \
+--save_total_limit 3 \
+--num_samples 10 \
+--overwrite_output_dir \
+--use_rdrop True
+>>>>>>> 5bff4077dfeac59277d7983a4f6e49faa8de82d8
 # --label_smoothing_factor 0.1 # BART rdrop 사용시 필수
 
 # python train.py \
@@ -126,11 +146,23 @@
 # --is_noam True \
 # --warmup_steps 2000
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+python predict.py \
+--model_name_or_path checkpoint/baseV1.0_Kobart \
+--num_beams 3
+=======
+>>>>>>> 5bff4077dfeac59277d7983a4f6e49faa8de82d8
 
 # python predict.py \
 # --model_name_or_path /opt/ml/final_project/model/checkpoint/kobigbirdbart \
 # --tokenizer_name monologg/kobigbird-bert-base \
 # --num_beams 3 \
+<<<<<<< HEAD
+=======
+>>>>>>> dev
+>>>>>>> 5bff4077dfeac59277d7983a4f6e49faa8de82d8
 # --use_model bigbart
 
 #### longformer
