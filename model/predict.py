@@ -19,6 +19,7 @@ from args import (
 )
 
 from utils.processor import preprocess_function
+from utils.data_preprocessor import Preprocessor
 from models.modeling_kobigbird_bart import EncoderDecoderModel
 
 @contextmanager
@@ -60,8 +61,10 @@ def main() :
     
     dataset_name = "metamong1/summarization"
     datasets = load_dataset(dataset_name + "_part" if data_args.is_part else dataset_name, use_auth_token=USE_AUTH_TOKEN)
+    data_preprocessor = Preprocessor()
+    datasets = datasets.map(data_preprocessor.for_test)
     valid_dataset = datasets['validation']
-    
+
     idx = 1600 ## 바꾸면서 test 해보세요!
     text = valid_dataset[idx]['text']
     title = valid_dataset[idx]['title']
