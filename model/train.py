@@ -157,6 +157,7 @@ def main():
         config.intermediate_size= 3072
         config.hidden_act="gelu"
         config.decoder_start_token_id = torch.tensor(2)
+        config.is_encoder_decoder = True
         config.use_cache = True
     else :
         config = AutoConfig.from_pretrained(
