@@ -10,6 +10,8 @@ from packaging import version
 from torch.optim.lr_scheduler import LambdaLR
 from transformers.deepspeed import is_deepspeed_zero3_enabled
 
+from copy import deepcopy
+
 if version.parse(torch.__version__) >= version.parse("1.6"):
     from torch.cuda.amp import autocast
     
@@ -43,14 +45,14 @@ class Seq2SeqTrainerWithConditionalDocType(Seq2SeqTrainer):
             "synced_gpus": True if is_deepspeed_zero3_enabled() else False,
         }
 
-        # if "doc_type_ids" in inputs.keys():
+        gen_inputs = deepcopy(inputs)
+        gen_inputs.pop("labels")
+
         generated_tokens = self.model.generate(
-            inputs["input_ids"],
-            attention_mask=inputs["attention_mask"],
-            doc_type_ids=inputs["doc_type_ids"] if "doc_type_ids" in inputs.keys() else None,
+            **gen_inputs,
             **gen_kwargs,
         )
-
+        
         # in case the batch is shorter than max length, the output should be padded
         if generated_tokens.shape[-1] < gen_kwargs["max_length"]:
             generated_tokens = self._pad_tensors_to_max_len(generated_tokens, gen_kwargs["max_length"])
@@ -128,16 +130,15 @@ class Seq2SeqTrainerWithConditionalDocType(Seq2SeqTrainer):
             :obj:`torch.Tensor`: The tensor with training loss on this batch.
         """
         if not self.args.use_rdrop:
-            return super().training_step(
-                model, inputs
-            )
+            return super().training_step(model, inputs)
+            
         model.train()
         inputs = self._prepare_inputs(inputs)
         
         concat_inputs = {
             'input_ids': torch.cat([inputs['input_ids'], inputs['input_ids'].clone()], 0),
             'attention_mask': torch.cat([inputs['attention_mask'], inputs['attention_mask'].clone()], 0),
-            'labels': inputs['labels'],
+            'labels': torch.cat([inputs['labels'], inputs['labels'].clone()], 0),
             # 'decoder_input_ids': torch.cat([inputs['decoder_input_ids'], inputs['decoder_input_ids'].clone()], 0),
         } # 두 번 forward 하기 힘드니까 concate해서 한 번에 feed 하고 잘라주는 형식입니다.
 
@@ -173,14 +174,14 @@ class Seq2SeqTrainerWithConditionalDocType(Seq2SeqTrainer):
         Subclass and override for custom behavior.
         """
         if not self.args.use_rdrop:
-            return super().compute_loss(
-                model, inputs
-            )
-        if self.label_smoother is not None and "labels" in inputs:
-            labels = inputs.pop("labels")
-            pad_mask = labels.unsqueeze(-1).eq(self.label_smoother.ignore_index)
-            labels = torch.cat([labels, labels.clone()], 0) # for r-drop3
-            inputs['labels'] = labels
+            return super().compute_loss(model, inputs)
+
+        # if self.label_smoother is not None and "labels" in inputs:
+        if "labels" in inputs:
+            labels = inputs['labels'] # inputs.pop("labels")
+            pad_mask = labels.unsqueeze(-1).eq(-100) # ignore_index
+            # pad_mask = labels.unsqueeze(-1).eq(self.label_smoother.ignore_index)
+            # labels = torch.cat([labels, labels.clone()], 0) # for r-drop3
         else:
             labels = None
         
@@ -193,9 +194,10 @@ class Seq2SeqTrainerWithConditionalDocType(Seq2SeqTrainer):
 
         if labels is not None:
             # loss = self.label_smoother(outputs, labels)
-            loss = self.label_smoothed_nll_loss(outputs, labels, 0.1)
-            kl_loss = self.compute_kl_loss(outputs, pad_mask)
-            loss += 1.0 * kl_loss # 0.7 == reg_alpha
+            loss = self.label_smoothed_nll_loss(outputs, labels,
+                                                epsilon=0.1 if self.label_smoother else 0)
+            kl_loss = self.compute_kl_loss(outputs, pad_mask=pad_mask)
+            loss += self.args.reg_alpha * kl_loss
         else:
             # We don't use .loss here since the model may return tuples instead of ModelOutput.
             loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
@@ -213,6 +215,7 @@ class Seq2SeqTrainerWithConditionalDocType(Seq2SeqTrainer):
         q_loss = F.kl_div(q, p_tec, reduction='none')
         
         if pad_mask is not None:
+            pad_mask, _ = torch.split(pad_mask, pad_mask.size(0)//2, dim=0)
             p_loss.masked_fill_(pad_mask, 0.)
             q_loss.masked_fill_(pad_mask, 0.)
 
@@ -229,7 +232,7 @@ class Seq2SeqTrainerWithConditionalDocType(Seq2SeqTrainer):
         if labels.dim() == log_probs.dim() - 1:
             labels = labels.unsqueeze(-1)
 
-        padding_mask = labels.eq(self.label_smoother.ignore_index)
+        padding_mask = labels.eq(-100) # self.label_smoother.ignore_index
         # In case the ignore_index is -100, the gather will fail, so we replace labels by 0. The padding_mask
         # will ignore them in any case.
         labels = torch.clamp(labels, min=0)

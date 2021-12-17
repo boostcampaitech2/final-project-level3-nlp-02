@@ -70,7 +70,14 @@ class CustomSeq2SeqTrainingArguments(Seq2SeqTrainingArguments):
     use_rdrop: bool = field(
         default=False,
         metadata={
-            "help": "Whether to use r-drop when fine-tuning"}
+            "help": "Whether to use r-drop when fine-tuning"
+        },
+    )
+    reg_alpha: float = field(
+        default=0.7,
+        metadata={
+            "help": "alpha value for regularized dropout(default: 0.7)"
+        },
     )
     # Arguments for distillation
     alpha: float = field(
