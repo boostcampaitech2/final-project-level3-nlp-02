@@ -34,6 +34,9 @@ pip install kss
 pip install tweepy==3.9.0
 pip install konlpy
 
+# ###Soft Pruning task
+python -m pip install -U nn_pruning
+
 # install mecab
 # apt install g++ -y
 # apt update

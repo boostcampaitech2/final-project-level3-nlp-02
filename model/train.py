@@ -31,7 +31,7 @@ from utils.data_preprocessor import Preprocessor, Filter
 from utils.data_collator import DataCollatorForSeq2SeqWithDocType
 from utils.processor import preprocess_function
 from utils.rouge import compute_metrics
-from optimization.knowledge_distillation import DistillationTrainer, TinyTrainer
+from optimization.knowledge_distillation import DistillationTrainer, PruningTrainer, TinyTrainer
 
 from models.modeling_longformerbart import LongformerBartConfig, LongformerBartWithDoctypeForConditionalGeneration
 from models.modeling_kobigbird_bart import (
@@ -41,6 +41,10 @@ from models.modeling_kobigbird_bart import (
     BigBirdModelWithDoctype, 
     BartDecoderWithDoctype
 )
+
+from nn_pruning.patch_coordinator import SparseTrainingArguments
+from nn_pruning.patch_coordinator import ModelPatchingCoordinator
+
 
 def seed_everything(seed):
     torch.manual_seed(seed)
@@ -157,10 +161,33 @@ def main():
         cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast_tokenizer
     )
+
+    # Soft pruning
+    def get_soft_pruning_args():
+        sparse_args = SparseTrainingArguments()
+        hyperparams = {
+            "dense_pruning_method": "topK:1d_alt", 
+            "attention_pruning_method": "topK", 
+            "initial_threshold": 1.0, 
+            "final_threshold": 0.5, 
+            "initial_warmup": 1,
+            "final_warmup": 3,
+            "attention_block_rows":32,
+            "attention_block_cols":32,
+            "attention_output_with_dense": 0
+        }
+
+        for k,v in hyperparams.items():
+            if hasattr(sparse_args, k):
+                setattr(sparse_args, k, v)
+            else:
+                print(f"sparse_args does not have argument {k}")
+        
+        return sparse_args
     
     def model_init():
         if model_args.use_model == "longbart":
-            return LongformerBartWithDoctypeForConditionalGeneration.from_pretrained(model_args.model_name_or_path, training_args.num_training_steps)
+            model = LongformerBartWithDoctypeForConditionalGeneration.from_pretrained(model_args.model_name_or_path, training_args.num_training_steps)
         elif model_args.use_model == "bigbart":
             # https://discuss.huggingface.co/t/fixing-the-random-seed-in-the-trainer-does-not-produce-the-same-results-across-runs/3442
             # Producibility parameter initialization
@@ -171,13 +198,27 @@ def main():
                 encoder.encoder.layer[i] = encoder.encoder.layer[2*i]
             encoder.encoder.layer = encoder.encoder.layer[:config["encoder"].encoder_layers]
             decoder.embed_tokens = encoder.embeddings.word_embeddings
-            return EncoderDecoderModel(encoder = encoder, decoder = decoder)     
+            model = EncoderDecoderModel(encoder = encoder, decoder = decoder)     
         else :
-            return AutoModelForSeq2SeqLM.from_pretrained(
+            model = AutoModelForSeq2SeqLM.from_pretrained(
                 model_args.model_name_or_path,
                 from_tf=bool(".ckpt" in model_args.model_name_or_path),
                 config=config
             )
+        
+        if training_args.use_soft_pruning:
+            sparse_args = get_soft_pruning_args()
+            mpc = ModelPatchingCoordinator(
+                sparse_args=sparse_args,
+                device=device,
+                cache_dir="checkpoints", 
+                logit_names="logits", 
+                teacher_constructor=None
+            )
+            mpc.patch_model(model.to(device))
+            return model
+
+        return model
     
     prep_fn  = partial(preprocess_function, tokenizer=tokenizer, data_args=data_args)
     train_dataset = train_dataset.map(
@@ -220,6 +261,11 @@ def main():
     wandb.config.update(training_args)
     
     comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
+
+    
+
+
+
     
     if training_args.distillation_type == 'distil':
         print('DistillationTrainer is used!!!')
@@ -251,6 +297,26 @@ def main():
             model_init=model_init, ## model 성능 재현
             callbacks = [EarlyStoppingCallback(early_stopping_patience=training_args.es_patience)] if training_args.es_patience else None
         )
+    elif not training_args.distillation_type and training_args.use_soft_pruning:
+        sparse_args = get_soft_pruning_args()
+        mpc = ModelPatchingCoordinator(
+                sparse_args=sparse_args,
+                device=device,
+                cache_dir="checkpoints", 
+                logit_names="logits", 
+                teacher_constructor=None
+            )
+        trainer = PruningTrainer(
+            sparse_args = sparse_args,
+            args=training_args,
+            eval_dataset=valid_dataset,
+            tokenizer=tokenizer,
+            data_collator=data_collator,
+            compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
+            model_init=model_init, ## model 성능 재현
+            callbacks = [EarlyStoppingCallback(early_stopping_patience=training_args.es_patience)] if training_args.es_patience else None
+        )
+        trainer.set_patch_coordinator(mpc)
     else:
         trainer = Seq2SeqTrainerWithConditionalDocType(
         args=training_args,

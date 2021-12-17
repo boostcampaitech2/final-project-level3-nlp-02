@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from transformers import Seq2SeqTrainingArguments
 from transformers import Seq2SeqTrainer
+from nn_pruning.sparse_trainer import SparseTrainer
 
 class DistillationTrainingArguments(Seq2SeqTrainingArguments):
     def __init__(self, *args, alpha=0.5, temperature=2.0, use_original=False, **kwargs):
@@ -144,3 +145,28 @@ class TinyTrainer(Seq2SeqTrainer):
         )
         
         return (loss, outputs_student) if return_outputs else loss
+
+class PruningTrainer(SparseTrainer, Seq2SeqTrainer):
+    def __init__(self, sparse_args, *args, **kwargs):
+        Seq2SeqTrainer.__init__(self, *args, **kwargs)
+        SparseTrainer.__init__(self, sparse_args)
+    
+    def compute_loss(self, model, inputs, return_outputs=False):
+        """
+        We override the default loss in SparseTrainer because it throws an 
+        error when run without distillation
+        """
+        outputs = model(**inputs)
+
+        # Save past state if it exists
+        # TODO: this needs to be fixed and made cleaner later.
+        if self.args.past_index >= 0:
+            self._past = outputs[self.args.past_index]
+
+        # We don't use .loss here since the model may return tuples instead of ModelOutput.
+        loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
+        self.metrics["ce_loss"] += float(loss)
+        self.loss_counter += 1
+        return (loss, outputs) if return_outputs else loss
+    
+    

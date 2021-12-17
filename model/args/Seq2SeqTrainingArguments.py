@@ -110,3 +110,9 @@ class CustomSeq2SeqTrainingArguments(Seq2SeqTrainingArguments):
             "help": "which teacher model to use(default: None)"
         }
     )
+    use_soft_pruning: bool = field(
+        default=False,
+        metadata={
+            "help": "Whether to use soft-pruning when fine-tuning"
+        },
+    )
