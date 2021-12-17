@@ -88,7 +88,7 @@ def add_padding(sample_tokens:List[int],
             sample_tokens = [bos_token_id] + sample_tokens[:max_length-2] + [eos_token_id]
     else:
         if bos_token_id == 0: #bart tokenizer만 진행
-            sample_tokens = [bos_token_id] + sample_tokens + [eos_token_id] + [padding_num]*(max_length-sample_tokens_len-2)
+            sample_tokens = [bos_token_id] + sample_tokens + [eos_token_id] # + [padding_num]*(max_length-sample_tokens_len-2)
         if padding:
             sample_tokens = sample_tokens + [padding_num]*(max_length-sample_tokens_len-2)
     return sample_tokens

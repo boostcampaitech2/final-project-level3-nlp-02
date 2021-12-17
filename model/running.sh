@@ -4,34 +4,34 @@
 ## 학습 파라미터 : epoch, weight decay, learning rate, warmup steps
 
 ########## pretraining #################
-# python pretrain.py \
-# --do_train \
-# --is_pretrain \
-# --output_dir model/longformerbart_pretrain_V1_trial3 \
-# --num_train_epochs 10 \
-# --logging_steps 2000 \
-# --save_strategy epoch \
-# --evaluation_strategy no \
-# --max_source_length 2048 \
-# --max_target_length 2048 \
-# --project_name longformerbart \
-# --per_device_train_batch_size 2 \
-# --gradient_accumulation_steps 4 \
-# --wandb_unique_tag longformerBart_pretraining_V1 \
-# --hidden_size 128 \
-# --encoder_layer_size 3 \
-# --decoder_layer_size 3 \
-# --attention_head_size 4 \
-# --attention_window_size 32 \
-# --dropout 0.5 \
-# --learning_rate 0.11 \
-# --warmup_steps 10000 \
-# --weight_decay 1e-2 \
-# --adam_beta1  0.9 \
-# --adam_beta2  0.999 \
-# --adam_epsilon 1e-06 \
-# --num_samples 10 \
-# --is_noam
+python pretrain.py \
+--do_train \
+--is_pretrain \
+--num_train_epochs 7 \
+--output_dir checkpoint/longformerBart_pretraining_V1_512_no_teacher \
+--overwrite_output_dir \
+--logging_steps 2000 \
+--save_strategy epoch \
+--evaluation_strategy no \
+--max_source_length 2048 \
+--max_target_length 2048 \
+--project_name longformerbart \
+--per_device_train_batch_size 4 \
+--gradient_accumulation_steps 4 \
+--wandb_unique_tag longformerBart_pretraining_V1_512_no_teacher \
+--hidden_size 512 \
+--encoder_layer_size 4 \
+--decoder_layer_size 4 \
+--attention_head_size 4 \
+--attention_window_size 64 \
+--dropout 0.1 \
+--learning_rate 1e-4 \
+--warmup_steps 10000 \
+--weight_decay 1e-4 \
+--adam_beta1  0.9 \
+--adam_beta2  0.98 \
+--adam_epsilon 1e-06 \
+--use_doc_type_ids True
 
 
 # 1. h_dim 128/256 => 논문 => 128 / 256
@@ -48,7 +48,6 @@
 ## 시도해볼 부분: epoch 수정해보기
 ## 변경 필요한 arguments: output_dir
 
-<<<<<<< HEAD
 # python train.py \
 # --do_train \
 # --output_dir checkpoint/rdroptest_nolabelsmoothed \
@@ -66,25 +65,6 @@
 # --num_samples 10 \
 # --overwrite_output_dir \
 # --use_rdrop True
-=======
-python train.py \
---do_train \
---output_dir checkpoint/rdroptest_nolabelsmoothed \
---num_train_epochs 100 \
---learning_rate 3e-05 \
---max_source_length 1024 \
---max_target_length 128 \
---metric_for_best_model rougeLsum \
---relative_eval_steps 10 \
---es_patience 3 \
---load_best_model_at_end True \
---project_name baseV1.0_Kobart \
---wandb_unique_tag rdroptest_nolabelsmoothed \
---save_total_limit 3 \
---num_samples 10 \
---overwrite_output_dir \
---use_rdrop True
->>>>>>> 5bff4077dfeac59277d7983a4f6e49faa8de82d8
 # --label_smoothing_factor 0.1 # BART rdrop 사용시 필수
 
 # python train.py \
@@ -146,51 +126,7 @@ python train.py \
 # --is_noam True \
 # --warmup_steps 2000
 
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-python predict.py \
---model_name_or_path checkpoint/baseV1.0_Kobart \
---num_beams 3
-=======
->>>>>>> 5bff4077dfeac59277d7983a4f6e49faa8de82d8
-
 # python predict.py \
-# --model_name_or_path /opt/ml/final_project/model/checkpoint/kobigbirdbart \
-# --tokenizer_name monologg/kobigbird-bert-base \
-# --num_beams 3 \
-<<<<<<< HEAD
-=======
->>>>>>> dev
->>>>>>> 5bff4077dfeac59277d7983a4f6e49faa8de82d8
+# --model_name_or_path checkpoint/baseV1.0_Kobart \
+# --num_beams 3
 # --use_model bigbart
-
-#### longformer
-python pretrain.py \
---do_train \
---is_pretrain \
---num_train_epochs 5 \
---output_dir checkpoint/longformerbart_44_512_no_teacehr_no_doctype_no_noam\
---overwrite_output_dir \
---logging_steps 2000 \
---save_strategy epoch \
---evaluation_strategy no \
---max_source_length 2048 \
---max_target_length 2048 \
---project_name longformerbart \
---per_device_train_batch_size 8 \
---gradient_accumulation_steps 4 \
---wandb_unique_tag longformerBart_pretraining_V1_512_no_teacher_no_noam \
---hidden_size 512 \
---encoder_layer_size 4 \
---decoder_layer_size 4 \
---attention_head_size 4 \
---attention_window_size 64 \
---dropout 0.1 \
---learning_rate 1e-4 \
---warmup_steps 10000 \
---weight_decay 1e-4 \
---adam_beta1  0.9 \
---adam_beta2  0.98 \
---adam_epsilon 1e-06 \
---use_doc_type_ids True

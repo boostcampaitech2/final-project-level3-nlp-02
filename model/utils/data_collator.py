@@ -237,4 +237,3 @@ class DataCollatorForTextInfillingDocType:
             else:
                 result[i, -example.shape[0] :] = example
         return result
-        
