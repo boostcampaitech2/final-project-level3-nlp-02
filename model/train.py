@@ -32,7 +32,9 @@ from utils.data_collator import DataCollatorForSeq2SeqWithDocType
 from utils.processor import preprocess_function
 from utils.rouge import compute_metrics
 from optimization.knowledge_distillation import DistillationTrainer, TinyTrainer
-
+from transformers.models.distilbert.configuration_distilbert import DistilBertConfig
+from transformers import DistilBertTokenizerFast
+from models.modeling_distilbert_bart import DistilBertForConditionalGeneration
 from models.modeling_longformerbart import LongformerBartConfig, LongformerBartWithDoctypeForConditionalGeneration
 from models.modeling_kobigbird_bart import (
     EncoderDecoderModel, 
@@ -146,17 +148,32 @@ def main():
         if data_args.use_doc_type_ids :
             config["encoder"].doc_type_size = 3
             config["decoder"].doc_type_size = 3
+    elif model_args.use_model=='distilbart':
+        config = DistilBertConfig.from_pretrained("monologg/distilkobert")
+        config.type_vocab_size=1
+        config.layer_norm_eps= 1e-05
+        config.hidden_dropout_prob= 0.1
+        config.attention_probs_dropout_prob= 0.1
+        config.intermediate_size= 3072
+        config.hidden_act="gelu"
+        config.decoder_start_token_id = torch.tensor(2)
+        config.use_cache = True
     else :
         config = AutoConfig.from_pretrained(
             model_args.config_name if model_args.config_name else model_args.model_name_or_path,
             cache_dir=model_args.cache_dir
         )
 
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
-        cache_dir=model_args.cache_dir,
-        use_fast=model_args.use_fast_tokenizer
-    )
+    if model_args.use_model=='distilbart':
+        tokenizer = DistilBertTokenizerFast.from_pretrained("monologg/distilkobert")
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
+            cache_dir=model_args.cache_dir,
+            use_fast=model_args.use_fast_tokenizer
+        )
+
+    
     
     def model_init():
         if model_args.use_model == "longbart":
@@ -172,6 +189,8 @@ def main():
             encoder.encoder.layer = encoder.encoder.layer[:config["encoder"].encoder_layers]
             decoder.embed_tokens = encoder.embeddings.word_embeddings
             return EncoderDecoderModel(encoder = encoder, decoder = decoder)     
+        elif model_args.use_model == 'distilbart':
+            return DistilBertForConditionalGeneration("monologg/distilkobert", config)
         else :
             return AutoModelForSeq2SeqLM.from_pretrained(
                 model_args.model_name_or_path,

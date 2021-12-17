@@ -4,3 +4,4 @@ wandb/
 checkpoint/
 *.env
 *.ipynb
+mecab**

@@ -4,35 +4,58 @@
 ## 학습 파라미터 : epoch, weight decay, learning rate, warmup steps
 
 ########## pretraining #################
---output_dir checkpoint/longformerbart_44_512_no_teacehr_no_doctype_no_noam\
-python pretrain.py \
---do_train \
---is_pretrain \
---num_train_epochs 5 \
---output_dir chekcpoint/test \
---overwrite_output_dir \
---logging_steps 2000 \
---save_strategy epoch \
---evaluation_strategy no \
---max_source_length 2048 \
---max_target_length 2048 \
-# --project_name longformerbart \
---per_device_train_batch_size 4 \
---gradient_accumulation_steps 4 \
-# --wandb_unique_tag longformerBart_pretraining_V1_512_no_noam \
---hidden_size 512 \
---encoder_layer_size 4 \
---decoder_layer_size 4 \
---attention_head_size 4 \
---attention_window_size 64 \
---dropout 0.1 \
---learning_rate 1e-4 \
---warmup_steps 10000 \
---weight_decay 1e-4 \
---adam_beta1  0.9 \
---adam_beta2  0.98 \
---adam_epsilon 1e-06 \
+# --output_dir checkpoint/longformerbart_44_512_no_teacehr_no_doctype_no_noam\
+# python pretrain.py \
+# --do_train \
+# --is_pretrain \
+# --num_train_epochs 5 \
+# --output_dir chekcpoint/test \
+# --overwrite_output_dir \
+# --logging_steps 2000 \
+# --save_strategy epoch \
+# --evaluation_strategy no \
+# --max_source_length 2048 \
+# --max_target_length 2048 \
+# # --project_name longformerbart \
+# --per_device_train_batch_size 4 \
+# --gradient_accumulation_steps 4 \
+# # --wandb_unique_tag longformerBart_pretraining_V1_512_no_noam \
+# --hidden_size 512 \
+# --encoder_layer_size 4 \
+# --decoder_layer_size 4 \
+# --attention_head_size 4 \
+# --attention_window_size 64 \
+# --dropout 0.1 \
+# --learning_rate 1e-4 \
+# --warmup_steps 10000 \
+# --weight_decay 1e-4 \
+# --adam_beta1  0.9 \
+# --adam_beta2  0.98 \
+# --adam_epsilon 1e-06 \
 # --use_doc_type_ids True
+
+
+
+# Distilbart
+python -i train.py \
+--do_train \
+--output_dir model/distilbart \
+--num_train_epochs 5 \
+--learning_rate 3e-05 \
+--max_source_length 510 \
+--max_target_length 128 \
+--metric_for_best_model rougeLsum \
+--relative_eval_steps 5 \
+--es_patience 3 \
+--load_best_model_at_end True \
+--project_name optimization \
+--save_total_limit 2 \
+--is_part true \
+--use_model distilbart \
+--overwrite_output_dir \
+--wandb_unique_tag distilbart
+
+
 
 
 # 1. h_dim 128/256 => 논문 => 128 / 256
@@ -127,7 +150,7 @@ python pretrain.py \
 # --is_noam True \
 # --warmup_steps 2000
 
-python predict.py \
---model_name_or_path checkpoint/baseV1.0_Kobart \
---num_beams 3
+# python predict.py \
+# --model_name_or_path checkpoint/baseV1.0_Kobart \
+# --num_beams 3
 # --use_model bigbart
