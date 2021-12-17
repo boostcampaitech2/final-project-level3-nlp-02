@@ -1,7 +1,7 @@
 import re
 import torch
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+from utils import split_tensor_by_words, token_to_words
 
 def format_attention(attention, layers=None, heads=None):
     if layers:
@@ -27,13 +27,13 @@ def highlighter(color, word):
     word = '<span style="background-color:' +color+ '">' +word+ '</span>'
     return word
 
-def text_highlight(model, tokenizer, text, generated_tokens) :
+def text_highlight(model, tokenizer, text, title) :
     encoder_input_ids = tokenizer(text, return_tensors="pt", add_special_tokens=True).input_ids
-    decoder_text = tokenizer.convert_ids_to_tokens(generated_tokens[0])
-    
-    outputs = model(input_ids=encoder_input_ids, decoder_input_ids=generated_tokens)
+    decoder_input_ids = tokenizer(title, return_tensors="pt", add_special_tokens=True).input_ids
 
-    encoder_text = tokenizer.convert_ids_to_tokens(encoder_input_ids[0])
+    encoder_text = tokenizer.convert_ids_to_tokens(encoder_input_ids[0])    
+    
+    outputs = model(input_ids=encoder_input_ids, decoder_input_ids=decoder_input_ids)
 
     st_cross_attention = format_attention(outputs.cross_attentions)
 
@@ -50,47 +50,30 @@ def text_highlight(model, tokenizer, text, generated_tokens) :
 
     return higlighted_text
 
-def cross_attention(model, tokenizer, text, generated_tokens) :
+def cross_attention(model, tokenizer, text, title, model_type) :
     encoder_input_ids = tokenizer(text, return_tensors="pt", add_special_tokens=True).input_ids
-    decoder_text = tokenizer.convert_ids_to_tokens(generated_tokens[0])
-    
-    outputs = model(input_ids=encoder_input_ids, decoder_input_ids=generated_tokens)
+    decoder_input_ids = tokenizer(title, return_tensors="pt", add_special_tokens=True).input_ids
 
-    encoder_text = tokenizer.convert_ids_to_tokens(encoder_input_ids[0])
+    encoder_tokens = tokenizer.convert_ids_to_tokens(encoder_input_ids[0])
+    decoder_tokens = tokenizer.convert_ids_to_tokens(decoder_input_ids[0])
+    
+    outputs = model(input_ids=encoder_input_ids, decoder_input_ids=decoder_input_ids)
 
     st_cross_attention = format_attention(outputs.cross_attentions)
 
     layer_mat = st_cross_attention.detach()
     last_h_layer_mat = torch.mean(layer_mat, 1)[-1] ## mean by head side, last layer
 
-    i = 0
-    dec_split_words_indices = []
-    for token in decoder_text :
-        if '▁' in token:
-            dec_split_words_indices.append(i)
-            i = 1
-        else : 
-            i += 1
-    dec_split_words_indices.append(i)
-    dec_split_words_indices = dec_split_words_indices[1:]
+    dec_split_words_indices = split_tensor_by_words(decoder_tokens, model_type)
+    enc_split_words_indices = split_tensor_by_words(encoder_tokens, model_type)
 
-    i = 0
-    enc_split_words_indices = []
-    for token in encoder_text :
-        if '▁' in token:
-            enc_split_words_indices.append(i)
-            i = 1
-        else : 
-            i += 1
-    enc_split_words_indices.append(i)
-    enc_split_words_indices = enc_split_words_indices[1:]
+    dec_space_split_text = token_to_words(decoder_tokens, model_type)
+    enc_space_split_text = token_to_words(encoder_tokens, model_type)
 
-    new_dec_text = ''.join(decoder_text).replace('▁', ' ')
-    new_enc_text = ''.join(encoder_text).replace('▁', ' ')
-    new_dec_tokens = new_dec_text.split(' ')[1:]
-    new_enc_tokens = new_enc_text.split(' ')[1:]
-
-    splited_by_spaces = torch.split(layer_mat, dec_split_words_indices, dim=0)
+    print('attn_shape:', last_h_layer_mat.shape)
+    print('dec_space_split_text:', dec_space_split_text)
+    print('dec_indices:', dec_split_words_indices)
+    splited_by_spaces = torch.split(last_h_layer_mat, dec_split_words_indices, dim=0)
     merging_tensor = []
     for split_tensor in splited_by_spaces :
         merging_tensor.append(torch.mean(split_tensor, 0))
@@ -104,8 +87,8 @@ def cross_attention(model, tokenizer, text, generated_tokens) :
 
     go_fig = go.Figure(go.Heatmap(
                     z=merged_attn,
-                    x=new_enc_tokens,
-                    y=new_dec_tokens,
+                    x=enc_space_split_text,
+                    y=dec_space_split_text,
                     colorscale='Reds',
                     hoverongaps=False))
     go_fig.update_layout(

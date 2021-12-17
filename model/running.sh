@@ -105,10 +105,9 @@ python train.py \
 --model_name_or_path monologg/kobigbird-bert-base \
 --use_model bigbart \
 --do_train \
---output_dir checkpoint/kobigbirdbart_ep3_bs16_lr1e4 \
+--output_dir checkpoint/kobigbirdbart_ep3_bs16_lr1e4_noam \
 --overwrite_output_dir \
 --num_train_epochs 3 \
---learning_rate 1e-4 \
 --max_source_length 4096 \
 --max_target_length 128 \
 --metric_for_best_model rougeLsum \
@@ -116,14 +115,16 @@ python train.py \
 --es_patience 3 \
 --load_best_model_at_end True \
 --project_name kobigbirdbart \
---wandb_unique_tag kobigbirdbart_ep3_bs16_lr1e4 \
+--wandb_unique_tag kobigbirdbart_ep3_bs16_lr1e4_noam \
 --per_device_train_batch_size 2 \
 --gradient_accumulation_steps 8 \
 --per_device_eval_batch_size 8 \
 --is_part True \
---use_teacher_forcing True
-# --is_noam True \
-# --warmup_steps 1000
+--learning_rate 0.09 \
+--is_noam True \
+--warmup_steps 1000
+#--use_teacher_forcing True
+
 
 
 # python predict.py \
