@@ -85,7 +85,7 @@ def main():
     ## data preprocessing
     datasets = datasets.map(data_preprocessor.for_train)
     datasets = datasets.filter(data_filter)
-
+    
     train_dataset = datasets['train']
     valid_dataset = datasets['validation']
 
@@ -169,8 +169,8 @@ def main():
             encoder = BigBirdModelWithDoctype.from_pretrained("monologg/kobigbird-bert-base",config=config["encoder"])
             decoder = BartDecoderWithDoctype.from_pretrained("gogamza/kobart-base-v1", config=config["decoder"])
             
-            for i in range(1,6):
-                encoder.encoder.layer[i] = encoder.encoder.layer[2*i]
+            # for i in range(1,6):
+            #     encoder.encoder.layer[i] = encoder.encoder.layer[2*i]
             encoder.encoder.layer = encoder.encoder.layer[:config["encoder"].encoder_layers]
             decoder.embed_tokens = encoder.embeddings.word_embeddings
             return EncoderDecoderModel(encoder = encoder, decoder = decoder)     
