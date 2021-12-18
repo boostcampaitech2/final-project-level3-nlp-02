@@ -4,3 +4,4 @@ wandb/
 checkpoint/
 *.env
 *.ipynb
+model/running.sh
