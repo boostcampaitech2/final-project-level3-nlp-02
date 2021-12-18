@@ -37,9 +37,9 @@
 
 
 # Distilbart
-python -i train.py \
+python train.py \
 --do_train \
---output_dir model/distilbart \
+--output_dir model/distilbart1 \
 --num_train_epochs 5 \
 --learning_rate 3e-05 \
 --max_source_length 510 \
