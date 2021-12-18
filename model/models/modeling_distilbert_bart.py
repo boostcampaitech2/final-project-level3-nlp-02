@@ -619,8 +619,6 @@ class DistilBertModel(DistilBertPreTrainedModel):
 
         self.pooler = DistilBertPooler(config) if add_pooling_layer else None
 
-        # Initialize weights and apply final processing
-        # self.post_init()
 
     def get_input_embeddings(self):
         return self.embeddings.word_embeddings
@@ -843,8 +841,6 @@ class DistilBertSeq2SeqModel(DistilBertPreTrainedModel):
         self.encoder = DistilBertModel.from_pretrained(model_name, config=config)
         self.decoder = DistilBertModel.from_pretrained(model_name, config=decoder_config)
 
-        # Initialize weights and apply final processing
-        # self.post_init()
 
     def get_encoder(self):
         return self.encoder
@@ -942,12 +938,8 @@ class DistilBertForConditionalGeneration(DistilBertPreTrainedModel):
     def __init__(self, model_name: str, config: DistilBertConfig):
         super().__init__(config)
         self.model = DistilBertSeq2SeqModel(model_name, config)
-        # self.register_buffer("final_logits_bias", torch.zeros((1, self.model.shared.num_embeddings)))
-        # self.lm_head = nn.Linear(config.d_model, self.model.shared.num_embeddings, bias=False)
         self.lm_head = DistilBertLMHead(config)
 
-        # Initialize weights and apply final processing
-        # self.post_init()
 
     def get_encoder(self):
         return self.model.get_encoder()
@@ -1027,7 +1019,7 @@ class DistilBertForConditionalGeneration(DistilBertPreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
-        lm_logits = self.lm_head(outputs[0])# + self.final_logits_bias
+        lm_logits = self.lm_head(outputs[0])
 
         masked_lm_loss = None
         if labels is not None:
