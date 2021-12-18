@@ -1,7 +1,6 @@
 __pycache__/
-
 wandb/
 checkpoint/
 *.env
 *.ipynb
-model/running.sh
+model/*.sh

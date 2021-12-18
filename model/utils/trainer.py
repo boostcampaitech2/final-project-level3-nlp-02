@@ -173,7 +173,7 @@ class Seq2SeqTrainerWithConditionalDocType(Seq2SeqTrainer):
         How the loss is computed by Trainer. By default, all models return the loss in the first element.
         Subclass and override for custom behavior.
         """
-        breakpoint()
+        
         if not self.args.use_rdrop and self.args.label_smoothing_factor == 0:
             return super().compute_loss(model, inputs)
 
