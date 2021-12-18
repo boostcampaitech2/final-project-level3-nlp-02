@@ -26,13 +26,12 @@ def pair_check(text) -> str:
         return stack[-1]
 
 class TitlePostProcessor :
-    def __init__(self, title) :
+    def __init__(self) :
         self.escaped_space = re.compile(r'\\r|\\n|\\\r|\\\n')
-        self.special_char = re.compile(r' -|·$')
-        self.title = title
+        self.special_char = re.compile(r' -|·$| /')
     
-    def post_process(self) :
-        title = self.escaped_space.sub('', self.title)
+    def post_process(self, title) :
+        title = self.escaped_space.sub('', title)
         init_title_len = len(title)
         
         while True :
@@ -54,6 +53,6 @@ class TitlePostProcessor :
 
 if __name__ == "__main__" :
     text = "홍역 전국 확산...당진지역 감염 주의보!\\r\\n(홍역"
-    pcs = TitlePostProcessor(text)
-    title = pcs.post_process()
+    pcs = TitlePostProcessor()
+    title = pcs.post_process(text)
     print(title)

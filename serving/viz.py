@@ -1,5 +1,5 @@
-import re
 import torch
+import numpy as np
 import plotly.graph_objects as go
 from utils import split_tensor_by_words, token_to_words
 
@@ -14,7 +14,7 @@ def format_attention(attention, layers=None, heads=None):
                              "output_attentions=True when initializing your model.")
         layer_attention = layer_attention.squeeze(0)
         if heads:
-            layer_attention = layer_attention[heads]
+            layer_attention = layer_attention[heads]    
         squeezed.append(layer_attention)
     # num_layers x num_heads x seq_len x seq_len
     return torch.stack(squeezed)
@@ -50,7 +50,7 @@ def text_highlight(model, tokenizer, text, title) :
 
     return higlighted_text
 
-def cross_attention(model, tokenizer, text, title, model_type) :
+def cross_attention(model, tokenizer, text, title, model_type, layer) :
     encoder_input_ids = tokenizer(text, return_tensors="pt", add_special_tokens=True).input_ids
     decoder_input_ids = tokenizer(title, return_tensors="pt", add_special_tokens=True).input_ids
 
@@ -62,7 +62,8 @@ def cross_attention(model, tokenizer, text, title, model_type) :
     st_cross_attention = format_attention(outputs.cross_attentions)
 
     layer_mat = st_cross_attention.detach()
-    last_h_layer_mat = torch.mean(layer_mat, 1)[-1] ## mean by head side, last layer
+    # last_h_layer_mat = torch.mean(layer_mat, 1)[-1] ## mean by head side, last layer
+    last_h_layer_mat = torch.mean(layer_mat, 1)[layer] 
 
     dec_split_words_indices = split_tensor_by_words(decoder_tokens, model_type)
     enc_split_words_indices = split_tensor_by_words(encoder_tokens, model_type)
@@ -70,9 +71,6 @@ def cross_attention(model, tokenizer, text, title, model_type) :
     dec_space_split_text = token_to_words(decoder_tokens, model_type)
     enc_space_split_text = token_to_words(encoder_tokens, model_type)
 
-    print('attn_shape:', last_h_layer_mat.shape)
-    print('dec_space_split_text:', dec_space_split_text)
-    print('dec_indices:', dec_split_words_indices)
     splited_by_spaces = torch.split(last_h_layer_mat, dec_split_words_indices, dim=0)
     merging_tensor = []
     for split_tensor in splited_by_spaces :
@@ -94,7 +92,7 @@ def cross_attention(model, tokenizer, text, title, model_type) :
     go_fig.update_layout(
         autosize=False,
         width=1200,
-        height=500,
+        height=400,
         yaxis_autorange="reversed",
         margin=dict(l=10, r=20, t=20, b=20)
     )

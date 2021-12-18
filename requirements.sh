@@ -23,6 +23,8 @@ pip install numpy
 pip install six=1.14
 
 # for viz
+pip install pyvis
+pip install networkx
 pip install bertviz
 pip install jupyter-dash
 pip install plotly

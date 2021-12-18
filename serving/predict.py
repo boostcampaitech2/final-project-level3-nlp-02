@@ -5,7 +5,6 @@ import streamlit as st
 import torch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from model.models.modeling_kobigbird_bart import EncoderDecoderModel
-
 from model.models.modeling_longformerbart import LongformerBartWithDoctypeForConditionalGeneration
 
 @st.cache(allow_output_mutation=True)

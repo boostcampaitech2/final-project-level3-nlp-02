@@ -34,7 +34,7 @@ def main(args):
     model_name = args.model
     with timer("load...") :
         tokenizer, model = load(model_name)
-    input_text = st.text_area('Prompt:', height=400)
+    input_text = st.text_area('Prompt:', height=250)
 
     if input_text :
         with timer("generate...") :
@@ -42,20 +42,22 @@ def main(args):
             title = tokenizer.decode(generated_tokens.squeeze().tolist(), skip_special_tokens=True)
             title = re.sub('</s> |</s>|[CLS] | [SEP]', '', title)
             
-            pcs = TitlePostProcessor(title)
-            title = pcs.post_process()
+            with timer("post processing...") :
+                pcs = TitlePostProcessor()
+                title = pcs.post_process(title)
             
             st.write(f'Titles: {title}')
     
-    if st.button('Attention Highlight'):
+    # if st.button('Attention Highlight'):
         highlighted_text = text_highlight(model, tokenizer, input_text, title)
-        col1, col2 = st.columns([2, 2])
-        
-    
-        col1.write(HTML(highlighted_text))
-        col2.write(title)
+        # col1, col2 = st.columns([2, 2])
+        # col1.write(HTML(highlighted_text))
+        # col2.write(title)
 
-        fig = cross_attention(model, tokenizer, input_text, title, args.use_model)
+        st.write(HTML(highlighted_text))
+
+        layer = st.sidebar.slider('Layer', 0, 5, 5, key='layer')
+        fig = cross_attention(model, tokenizer, input_text, title, args.use_model, layer)
         st.plotly_chart(fig)
 
 if __name__ == "__main__" :
@@ -63,7 +65,7 @@ if __name__ == "__main__" :
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='../model/checkpoint/baseV1.0_Kobart')
-    parser.add_argument('--use_model', type=str, default='kobart', help='bigbart or etc')
+    parser.add_argument('--use_model', type=str, default='kobart', help='kobigbirdbart or etc')
     args = parser.parse_args()
 
     main(args)
