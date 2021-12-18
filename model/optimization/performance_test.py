@@ -17,7 +17,7 @@ load_dotenv(verbose=True)
 def performance_test(
     *,
     check_point = 'gogamza/kobart-summarization',
-    test_dataset = 'metamong1/summarization_paper',
+    test_dataset = 'metamong1/summarization',
     test_dataset_size = 1000,
     cpu_flag=False,
     test_categories='rouge,time,size',
@@ -82,7 +82,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--check_point', type=str, default='gogamza/kobart-summarization', help='model checkpoint (default: gogamza/kobart-summarization)')
-    parser.add_argument('--test_dataset', type=str, default='metamong1/summarization', help='test dataset (default: metamong1/summarization_paper)')
+    parser.add_argument('--test_dataset', type=str, default='metamong1/summarization', help='test dataset (default: metamong1/summarization)')
     parser.add_argument('--test_dataset_size', type=int, default=1000, help='test dataset size (defualt: 1000)')
     parser.add_argument('--cpu_flag', action='store_true', help='use cpu (default: gpu)')
     parser.add_argument('--test_categories', type=str, default='rouge,time,size', help='test categories seperated by , ex: time,size,rouge (defualt: rouge,time,size)')
