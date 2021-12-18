@@ -4,35 +4,72 @@
 ## 학습 파라미터 : epoch, weight decay, learning rate, warmup steps
 
 ########## pretraining #################
---output_dir checkpoint/longformerbart_44_512_no_teacehr_no_doctype_no_noam\
-python pretrain.py \
---do_train \
---is_pretrain \
---num_train_epochs 5 \
---output_dir chekcpoint/test \
---overwrite_output_dir \
---logging_steps 2000 \
---save_strategy epoch \
---evaluation_strategy no \
---max_source_length 2048 \
---max_target_length 2048 \
+# --output_dir chekcpoint/longformerBart_pretraining_V1_512_no_teacher_no_doctype  \
+
+# python pretrain.py \
+# --do_train \
+# --is_pretrain \
+# --num_train_epochs  \
+# --output_dir checkpoint/test \
+# --num_samples 50 \
+# --overwrite_output_dir \
+# --logging_steps 2000 \
+# --save_strategy epoch \
+# --evaluation_strategy no \
+# --max_source_length 2048 \
+# --max_target_length 2048 \
 # --project_name longformerbart \
---per_device_train_batch_size 4 \
+# --per_device_train_batch_size 4 \
+# --gradient_accumulation_steps 4 \
+# --wandb_unique_tag test \
+# --hidden_size 512 \
+# --encoder_layer_size 4 \
+# --decoder_layer_size 4 \
+# --attention_head_size 4 \
+# --attention_window_size 64 \
+# --dropout 0.1 \
+# --learning_rate 1e-4 \
+# --warmup_steps 10000 \
+# --weight_decay 1e-4 \
+# --adam_beta1  0.9 \
+# --adam_beta2  0.98 \
+# --adam_epsilon 1e-06 \
+# --use_doc_type_ids True
+
+python train.py \
+--do_train \
+--is_part \
+--use_doc_type_ids \
+--num_train_epochs 10 \
+--output_dir checkpoint/longformerbart_fine_512_noam \
+--logging_steps 2000 \
+--relative_eval_steps 10 \
+--project_name longformerbart \
+--per_device_train_batch_size 8 \
 --gradient_accumulation_steps 4 \
-# --wandb_unique_tag longformerBart_pretraining_V1_512_no_noam \
---hidden_size 512 \
---encoder_layer_size 4 \
---decoder_layer_size 4 \
---attention_head_size 4 \
---attention_window_size 64 \
---dropout 0.1 \
---learning_rate 1e-4 \
+--load_best_model_at_end True \
+--use_model longbart \
+--model_name_or_path metamong1/longbartwithdoctype \
+--wandb_unique_tag lB_fine_512_noam \
+--dropout 0.3 \
+--learning_rate 0.226 \
 --warmup_steps 10000 \
 --weight_decay 1e-4 \
 --adam_beta1  0.9 \
---adam_beta2  0.98 \
+--adam_beta2  0.999 \
 --adam_epsilon 1e-06 \
-# --use_doc_type_ids True
+--is_noam \
+--overwrite_output_dir \
+--num_samples 30
+
+# --wandb_unique_tag lB_fine_512_prep \
+# --wandb_unique_tag lB_fine_512_LbSm \
+# --label_smoothing_factor 0.1 \
+
+
+
+
+
 
 
 # 1. h_dim 128/256 => 논문 => 128 / 256
@@ -127,7 +164,7 @@ python pretrain.py \
 # --is_noam True \
 # --warmup_steps 2000
 
-python predict.py \
---model_name_or_path checkpoint/baseV1.0_Kobart \
---num_beams 3
+# python predict.py \
+# --model_name_or_path checkpoint/baseV1.0_Kobart \
+# --num_beams 3
 # --use_model bigbart

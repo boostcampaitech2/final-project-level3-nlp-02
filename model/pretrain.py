@@ -12,9 +12,9 @@ from transformers import HfArgumentParser
 from datasets import load_dataset
 from transformers.trainer_utils import get_last_checkpoint
 from transformers import AutoTokenizer
-from utils.processor import preprocess_function
-from utils.trainer import Seq2SeqTrainerWithConditionalDocType
-from utils.data_collator import DataCollatorForTextInfillingDocType
+from utils_.processor import preprocess_function
+from utils_.trainer import Seq2SeqTrainerWithConditionalDocType
+from utils_.data_collator import DataCollatorForTextInfillingDocType
 
 from args import (
     DataTrainingArguments,

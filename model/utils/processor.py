@@ -35,13 +35,13 @@ def preprocess_function(examples:datasets,
         model_inputs["attention_mask"][i] = add_padding(sample_tokens=model_inputs["attention_mask"][i],
                                                         padding=inputs_padding_bool,
                                                         padding_num= pad_token_id,
-                                                        max_length=max_target_length,
+                                                        max_length=max_source_length,
                                                         bos_token_id = bos_token_id,
                                                         eos_token_id = eos_token_id) 
         model_inputs["input_ids"][i] = add_padding(sample_tokens=model_inputs["input_ids"][i],
                                                         padding=inputs_padding_bool,
                                                         padding_num= pad_token_id,
-                                                        max_length=max_target_length,
+                                                        max_length=max_source_length,
                                                         bos_token_id = bos_token_id,
                                                         eos_token_id = eos_token_id)
         
@@ -88,7 +88,7 @@ def add_padding(sample_tokens:List[int],
             sample_tokens = [bos_token_id] + sample_tokens[:max_length-2] + [eos_token_id]
     else:
         if bos_token_id == 0: #bart tokenizer만 진행
-            sample_tokens = [bos_token_id] + sample_tokens + [eos_token_id] + [padding_num]*(max_length-sample_tokens_len-2)
+            sample_tokens = [bos_token_id] + sample_tokens + [eos_token_id] # + [padding_num]*(max_length-sample_tokens_len-2)
         if padding:
             sample_tokens = sample_tokens + [padding_num]*(max_length-sample_tokens_len-2)
     return sample_tokens

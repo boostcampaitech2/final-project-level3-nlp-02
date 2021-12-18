@@ -26,6 +26,8 @@ from args import (
     CustomSeq2SeqTrainingArguments
 )
 
+
+
 from utils.trainer import Seq2SeqTrainerWithConditionalDocType
 from utils.data_preprocessor import Preprocessor, Filter
 from utils.data_collator import DataCollatorForSeq2SeqWithDocType
@@ -79,12 +81,12 @@ def main():
     
     dataset_name = "metamong1/summarization"
     datasets = load_dataset(dataset_name + "_part" if data_args.is_part else dataset_name, use_auth_token=USE_AUTH_TOKEN)
-    data_preprocessor = Preprocessor()
-    data_filter = Filter(min_size=5, max_size=100)
+    # data_preprocessor = Preprocessor()
+    # data_filter = Filter(min_size=5, max_size=100)
 
-    ## data preprocessing
-    datasets = datasets.map(data_preprocessor.for_train)
-    datasets = datasets.filter(data_filter)
+    # ## data preprocessing
+    # datasets = datasets.map(data_preprocessor.for_train)
+    # datasets = datasets.filter(data_filter)
 
     train_dataset = datasets['train']
     valid_dataset = datasets['validation']
@@ -115,23 +117,14 @@ def main():
     print(f"valid_dataset length: {len(valid_dataset)}")
     print(f"eval_steps: {training_args.eval_steps}")
 
-    
-    # model별 config 호출
-    if model_args.use_model == "longbart":
-        config = LongformerBartConfig.from_pretrained(
-                model_args.config_name if model_args.config_name else model_args.model_name_or_path)
+   
 
-        config.encoder_layers = model_args.encoder_layer_size
-        config.decoder_layers = model_args.decoder_layer_size
-        config.d_model = model_args.hidden_size
-        config.encoder_attention_heads = model_args.attention_head_size
-        config.decoder_attention_heads = model_args.attention_head_size
-        config.max_position_embeddings = data_args.max_source_length
-        config.max_target_positions = data_args.max_target_length
-        config.attention_window = [model_args.attention_window_size]*model_args.encoder_layer_size
-        config.attention_dropout = model_args.dropout
-        config.dropout = model_args.dropout
-    
+    if model_args.use_model=="longbart" :
+        config = LongformerBartConfig.from_pretrained("metamong1/longbartwithdoctype")
+        data_args.max_source_length = config.max_position_embeddings
+        data_args.max_target_length = config.max_target_positions
+        model_args.attention_window_size = config.attention_window[0]
+        training_args.model_config = config
     elif model_args.use_model=="bigbart":
         config = {}
         config["encoder"] = BigBirdConfigWithDoctype.from_pretrained("monologg/kobigbird-bert-base")
@@ -160,7 +153,11 @@ def main():
     
     def model_init():
         if model_args.use_model == "longbart":
-            return LongformerBartWithDoctypeForConditionalGeneration.from_pretrained(model_args.model_name_or_path, training_args.num_training_steps)
+            model = LongformerBartWithDoctypeForConditionalGeneration.from_pretrained(model_args.model_name_or_path)
+            model.config.dropout = model_args.dropout
+            model.config.attention_dropout = model_args.dropout
+
+            return model
         elif model_args.use_model == "bigbart":
             # https://discuss.huggingface.co/t/fixing-the-random-seed-in-the-trainer-does-not-produce-the-same-results-across-runs/3442
             # Producibility parameter initialization
