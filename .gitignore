@@ -5,3 +5,4 @@ checkpoint/
 *.env
 *.ipynb
 mecab**
+distilbart**

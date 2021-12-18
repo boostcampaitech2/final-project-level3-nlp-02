@@ -28,7 +28,7 @@ def performance_test(
 ):
     # 기본 세팅
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    api_token = os.getenv('HF_DATASET_API_TOKEN')
+    api_token = os.getenv('USE_AUTH_TOKEN')
     if args:
         check_point = args.check_point  # 'kobart-summarization-finetuned-paper-sample-size-1000/checkpoint-1000'
         test_dataset = args.test_dataset
@@ -82,7 +82,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--check_point', type=str, default='gogamza/kobart-summarization', help='model checkpoint (default: gogamza/kobart-summarization)')
-    parser.add_argument('--test_dataset', type=str, default='metamong1/summarization_paper', help='test dataset (default: metamong1/summarization_paper)')
+    parser.add_argument('--test_dataset', type=str, default='metamong1/summarization', help='test dataset (default: metamong1/summarization_paper)')
     parser.add_argument('--test_dataset_size', type=int, default=1000, help='test dataset size (defualt: 1000)')
     parser.add_argument('--cpu_flag', action='store_true', help='use cpu (default: gpu)')
     parser.add_argument('--test_categories', type=str, default='rouge,time,size', help='test categories seperated by , ex: time,size,rouge (defualt: rouge,time,size)')
