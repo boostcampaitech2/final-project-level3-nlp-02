@@ -115,24 +115,8 @@ def main():
     print(f"valid_dataset length: {len(valid_dataset)}")
     print(f"eval_steps: {training_args.eval_steps}")
 
-    
-    # model별 config 호출
-    if model_args.use_model == "longbart":
-        config = LongformerBartConfig.from_pretrained(
-                model_args.config_name if model_args.config_name else model_args.model_name_or_path)
-
-        config.encoder_layers = model_args.encoder_layer_size
-        config.decoder_layers = model_args.decoder_layer_size
-        config.d_model = model_args.hidden_size
-        config.encoder_attention_heads = model_args.attention_head_size
-        config.decoder_attention_heads = model_args.attention_head_size
-        config.max_position_embeddings = data_args.max_source_length
-        config.max_target_positions = data_args.max_target_length
-        config.attention_window = [model_args.attention_window_size]*model_args.encoder_layer_size
-        config.attention_dropout = model_args.dropout
-        config.dropout = model_args.dropout
-    
-    elif model_args.use_model=="bigbart":
+   
+    if model_args.use_model=="bigbart":
         config = {}
         config["encoder"] = BigBirdConfigWithDoctype.from_pretrained("monologg/kobigbird-bert-base")
         config["decoder"] = BartConfigWithDoctype.from_pretrained("gogamza/kobart-base-v1")
@@ -146,7 +130,7 @@ def main():
         if data_args.use_doc_type_ids :
             config["encoder"].doc_type_size = 3
             config["decoder"].doc_type_size = 3
-    else :
+    elif model_args.use_model=="auto" :
         config = AutoConfig.from_pretrained(
             model_args.config_name if model_args.config_name else model_args.model_name_or_path,
             cache_dir=model_args.cache_dir
@@ -160,7 +144,10 @@ def main():
     
     def model_init():
         if model_args.use_model == "longbart":
-            return LongformerBartWithDoctypeForConditionalGeneration.from_pretrained(model_args.model_name_or_path, training_args.num_training_steps)
+            model = LongformerBartWithDoctypeForConditionalGeneration.from_pretrained(model_args.model_name_or_path)
+            model.config.dropout = model_args.dropout
+            model.config.attention_dropout = model_args.dropout
+            return model
         elif model_args.use_model == "bigbart":
             # https://discuss.huggingface.co/t/fixing-the-random-seed-in-the-trainer-does-not-produce-the-same-results-across-runs/3442
             # Producibility parameter initialization
@@ -282,7 +269,7 @@ def main():
         if training_args.generation_max_length is not None
         else data_args.val_max_target_length)
     results = {}
-    
+        
     num_beams = data_args.num_beams if data_args.num_beams is not None else training_args.generation_num_beams
     if not training_args.do_train and training_args.do_eval:
 

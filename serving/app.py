@@ -42,9 +42,9 @@ def main(args):
             title = tokenizer.decode(generated_tokens.squeeze().tolist(), skip_special_tokens=True)
             title = re.sub('</s> |</s>|[CLS] | [SEP]', '', title)
             
-            with timer("post processing...") :
-                pcs = TitlePostProcessor()
-                title = pcs.post_process(title)
+        with timer("post processing...") :
+            pcs = TitlePostProcessor()
+            title = pcs.post_process(title)
             
             st.write(f'Titles: {title}')
     

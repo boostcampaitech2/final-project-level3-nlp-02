@@ -264,8 +264,8 @@ class LongformerBartEncoderWithDocType(BartPretrainedModel):
         hidden_states = inputs_embeds + embed_pos
         if self.doc_type_tokens is not None :
             doc_type = self.doc_type_tokens(doc_type_ids)
-            hidden_states += + doc_type
-        
+            hidden_states += doc_type
+
         hidden_states = self.layernorm_embedding(hidden_states)
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 

@@ -35,13 +35,13 @@ def preprocess_function(examples:datasets,
         model_inputs["attention_mask"][i] = add_padding(sample_tokens=model_inputs["attention_mask"][i],
                                                         padding=inputs_padding_bool,
                                                         padding_num= pad_token_id,
-                                                        max_length=max_target_length,
+                                                        max_length=max_source_length,
                                                         bos_token_id = bos_token_id,
                                                         eos_token_id = eos_token_id) 
         model_inputs["input_ids"][i] = add_padding(sample_tokens=model_inputs["input_ids"][i],
                                                         padding=inputs_padding_bool,
                                                         padding_num= pad_token_id,
-                                                        max_length=max_target_length,
+                                                        max_length=max_source_length,
                                                         bos_token_id = bos_token_id,
                                                         eos_token_id = eos_token_id)
         

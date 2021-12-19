@@ -141,7 +141,8 @@ class Seq2SeqTrainerWithConditionalDocType(Seq2SeqTrainer):
             'labels': torch.cat([inputs['labels'], inputs['labels'].clone()], 0),
             # 'decoder_input_ids': torch.cat([inputs['decoder_input_ids'], inputs['decoder_input_ids'].clone()], 0),
         } # 두 번 forward 하기 힘드니까 concate해서 한 번에 feed 하고 잘라주는 형식입니다.
-
+        if 'doc_type_ids' in inputs:
+            concat_inputs['doc_type_ids'] = torch.cat([inputs['doc_type_ids'], inputs['doc_type_ids'].clone()], 0)
         if self.use_amp:
             if version.parse(torch.__version__) >= version.parse("1.10"):
                 with autocast(dtype=self.amp_dtype):
@@ -173,36 +174,54 @@ class Seq2SeqTrainerWithConditionalDocType(Seq2SeqTrainer):
         How the loss is computed by Trainer. By default, all models return the loss in the first element.
         Subclass and override for custom behavior.
         """
-        if not self.args.use_rdrop:
+        if not self.args.use_rdrop and self.args.label_smoothing_factor == 0:
             return super().compute_loss(model, inputs)
 
-        # if self.label_smoother is not None and "labels" in inputs:
-        if "labels" in inputs:
-            labels = inputs['labels'] # inputs.pop("labels")
-            pad_mask = labels.unsqueeze(-1).eq(-100) # ignore_index
-            # pad_mask = labels.unsqueeze(-1).eq(self.label_smoother.ignore_index)
-            # labels = torch.cat([labels, labels.clone()], 0) # for r-drop3
-        else:
-            labels = None
-        
-        outputs = model(**inputs)
-        
-        # Save past state if it exists
-        # TODO: this needs to be fixed and made cleaner later.
-        if self.args.past_index >= 0:
-            self._past = outputs[self.args.past_index]
+        elif not self.args.use_rdrop and self.args.label_smoothing_factor != 0:
+            assert "labels" in inputs
+            labels = inputs["labels"]
+            outputs = model(**inputs)
+            # Save past state if it exists
+            # TODO: this needs to be fixed and made cleaner later.
+            if self.args.past_index >= 0:
+                self._past = outputs[self.args.past_index]
 
-        if labels is not None:
-            # loss = self.label_smoother(outputs, labels)
-            loss = self.label_smoothed_nll_loss(outputs, labels,
-                                                epsilon=0.1 if self.label_smoother else 0)
-            kl_loss = self.compute_kl_loss(outputs, pad_mask=pad_mask)
-            loss += self.args.reg_alpha * kl_loss
-        else:
-            # We don't use .loss here since the model may return tuples instead of ModelOutput.
-            loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
+            if labels is not None:
+                loss = self.label_smoother(outputs, labels)
+            else:
+                # We don't use .loss here since the model may return tuples instead of ModelOutput.
+                loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
 
-        return (loss, outputs) if return_outputs else loss
+            return (loss, outputs) if return_outputs else loss
+
+        else:
+            # if self.label_smoother is not None and "labels" in inputs:
+            if "labels" in inputs:
+                labels = inputs['labels'] # inputs.pop("labels")
+                pad_mask = labels.unsqueeze(-1).eq(-100) # ignore_index
+                # pad_mask = labels.unsqueeze(-1).eq(self.label_smoother.ignore_index)
+                # labels = torch.cat([labels, labels.clone()], 0) # for r-drop3
+            else:
+                labels = None
+            
+            outputs = model(**inputs)
+            
+            # Save past state if it exists
+            # TODO: this needs to be fixed and made cleaner later.
+            if self.args.past_index >= 0:
+                self._past = outputs[self.args.past_index]
+
+            if labels is not None:
+                # loss = self.label_smoother(outputs, labels)
+                loss = self.label_smoothed_nll_loss(outputs, labels,
+                                                    epsilon=0.1 if self.label_smoother else 0)
+                kl_loss = self.compute_kl_loss(outputs, pad_mask=pad_mask)
+                loss += self.args.reg_alpha * kl_loss
+            else:
+                # We don't use .loss here since the model may return tuples instead of ModelOutput.
+                loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
+
+            return (loss, outputs) if return_outputs else loss
 
     def compute_kl_loss(self, net_output, pad_mask=None, reduce=True):
         net_prob = self.get_normalized_probs(net_output, log_probs=True)

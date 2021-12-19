@@ -4,34 +4,31 @@
 ## 학습 파라미터 : epoch, weight decay, learning rate, warmup steps
 
 ########## pretraining #################
-python pretrain.py \
+python train.py \
 --do_train \
---is_pretrain \
---num_train_epochs 7 \
---output_dir checkpoint/longformerBart_pretraining_V1_512_no_teacher \
---overwrite_output_dir \
+--is_part \
+--use_doc_type_ids \
+--num_train_epochs 10 \
+--preprocessing_num_workers 1 \
+--output_dir checkpoint/lB_fine_512_LbSm_rdrop_Prep \
 --logging_steps 2000 \
---save_strategy epoch \
---evaluation_strategy no \
---max_source_length 2048 \
---max_target_length 2048 \
+--relative_eval_steps 10 \
 --project_name longformerbart \
---per_device_train_batch_size 4 \
+--per_device_train_batch_size 8 \
 --gradient_accumulation_steps 4 \
---wandb_unique_tag longformerBart_pretraining_V1_512_no_teacher \
---hidden_size 512 \
---encoder_layer_size 4 \
---decoder_layer_size 4 \
---attention_head_size 4 \
---attention_window_size 64 \
---dropout 0.1 \
+--load_best_model_at_end True \
+--use_model longbart \
+--model_name_or_path metamong1/longbartwithdoctype \
+--wandb_unique_tag lB_fine_512_LbSm_rdrop_Prep \
+--dropout 0.3 \
 --learning_rate 1e-4 \
 --warmup_steps 10000 \
 --weight_decay 1e-4 \
 --adam_beta1  0.9 \
---adam_beta2  0.98 \
+--adam_beta2  0.999 \
 --adam_epsilon 1e-06 \
---use_doc_type_ids True
+--use_rdrop True \
+--label_smoothing_factor 0.1
 
 
 # 1. h_dim 128/256 => 논문 => 128 / 256

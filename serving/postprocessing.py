@@ -45,14 +45,14 @@ class TitlePostProcessor :
                 else :
                     title = title[:unmatched_idx] + title[unmatched_idx+1:]
 
-        titles = split_sentences(title)
-        title = "".join(titles[:-1]) if len(titles) != 1 else titles[0]
+        # titles = split_sentences(title)
+        # title = "".join(titles[:-1]) if len(titles) != 1 else titles[0]
         title = title.rstrip()
         title = self.special_char.sub('', title)
         return title
 
 if __name__ == "__main__" :
-    text = "홍역 전국 확산...당진지역 감염 주의보!\\r\\n(홍역"
+    text = "불법으로 결론 난 열풍, 돈 버는 게임(P2E"
     pcs = TitlePostProcessor()
     title = pcs.post_process(text)
     print(title)
