@@ -130,8 +130,6 @@ def main():
             cache_dir=model_args.cache_dir
         )
     if model_args.use_model == "bigbart":
-        if training_args.use_teacher_forcing :
-            config.decoder.num_training_steps = training_args.num_training_steps
         training_args.model_config = config.decoder
 
         if data_args.use_doc_type_ids :

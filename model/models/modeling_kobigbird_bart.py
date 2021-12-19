@@ -881,18 +881,26 @@ class EncoderDecoderModel(PreTrainedModel):
                 return_dict=return_dict,
                 **kwargs_decoder,
             )
-
             decoder_hidden_states = decoder_outputs[0] # (batch_size, seq_size, hidden_size) 
             lm_logits = self.lm_head(decoder_hidden_states) + self.final_logits_bias # (batch_size, seq_size, vocab_size)
-            lm_logits_softmax = torch.softmax(lm_logits, dim=-1) # (batch_size, seq_size, vocab_size)
-            prediction_output_ids = torch.argmax(lm_logits_softmax,dim=-1) # (batch_size, seq_size)
-            is_teacher_forcing = torch.bernoulli(torch.rand_like(decoder_input_ids.float())).bool()
-            decoder_input_ids[~is_teacher_forcing] = prediction_output_ids[~is_teacher_forcing] 
+            lm_logits_softmax = torch.softmax(lm_logits,dim=-1)
+            topk_logits, topk_indices = torch.topk(lm_logits_softmax,k=5,dim=-1)
+            is_topk_indices_used = topk_logits.sum(dim=-1) > 0.7
+            
+            # method2 : top-5
+            topk_token_hidden_state = self.encoder.embeddings.word_embeddings(topk_indices)
+            topk_token_hidden_state_mean = torch.mean(topk_token_hidden_state, dim=-2)*math.sqrt(self.decoder.config.d_model)
+            decoder_inputs_embeds = self.encoder.embeddings.word_embeddings(decoder_input_ids)
+            decoder_inputs_embeds[is_topk_indices_used] = topk_token_hidden_state_mean[is_topk_indices_used]
+            decoder_input_ids=None
+            del decoder_hidden_states
             del lm_logits
             del lm_logits_softmax
-            del prediction_output_ids
-            del is_teacher_forcing
-            del decoder_hidden_states
+            del topk_logits
+            del topk_indices
+            del is_topk_indices_used
+            del topk_token_hidden_state
+            del topk_token_hidden_state_mean
 
         # Decode
         decoder_outputs = self.decoder(
