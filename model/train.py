@@ -103,7 +103,7 @@ def main():
     print('** Dataset example')
     print(f"[for Train Dataset] : {train_dataset[0]['title']}")
     print(f"[for Valid Dataset] : {valid_dataset[0]['title']}")
-
+    
     column_names = train_dataset.column_names
     if data_args.relative_eval_steps :
         # Train 동안 relative_eval_steps count 회수 만큼 evaluation 
@@ -144,6 +144,9 @@ def main():
             model_args.config_name if model_args.config_name else model_args.model_name_or_path,
             cache_dir=model_args.cache_dir
         )
+
+    if training_args.use_teacher_forcing:
+        config.num_training_steps =  iter_by_epoch * training_args.num_train_epochs
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
