@@ -102,7 +102,7 @@
 ######### bigbirdbart ##########
 
 python train.py \
---model_name_or_path monologg/kobigbird-bert-base \
+--model_name_or_path metamong1/bigbird-bart-base \
 --use_model bigbart \
 --do_train \
 --output_dir checkpoint/kobigbirdbart_prepro_ep3_bs16_lr1e4_noam_RD_top6 \
@@ -117,12 +117,12 @@ python train.py \
 --project_name kobigbirdbart \
 --wandb_unique_tag kobigbirdbart_prepro_ep3_bs16_lr1e4_noam_RD_top6 \
 --per_device_train_batch_size 1 \
---gradient_accumulation_steps 32 \
+--gradient_accumulation_steps 16 \
 --per_device_eval_batch_size 8 \
 --is_part True \
---learning_rate 0.15 \
+--learning_rate 0.09 \
 --is_noam True \
---warmup_steps 2000 \
+--warmup_steps 1000 \
 --use_rdrop True \
 --label_smoothing_factor 0.1
 #--use_teacher_forcing True

@@ -131,28 +131,19 @@ def main():
         config.attention_window = [model_args.attention_window_size]*model_args.encoder_layer_size
         config.attention_dropout = model_args.dropout
         config.dropout = model_args.dropout
-    
-    elif model_args.use_model=="bigbart":
-        config = {}
-        config["encoder"] = BigBirdConfigWithDoctype.from_pretrained("monologg/kobigbird-bert-base")
-        config["decoder"] = BartConfigWithDoctype.from_pretrained("gogamza/kobart-base-v1")
-        
-        config["encoder"].encoder_layers = 6
-        config["decoder"].vocab_size = config["encoder"].vocab_size
-        config["decoder"].pad_token_id = config["encoder"].pad_token_id
-        config["decoder"].max_position_embeddings = data_args.max_target_length
-        if training_args.use_teacher_forcing :
-            config["decoder"].num_training_steps = training_args.num_training_steps
-        training_args.model_config = config["decoder"]
-
-        if data_args.use_doc_type_ids :
-            config["encoder"].doc_type_size = 3
-            config["decoder"].doc_type_size = 3
     else :
         config = AutoConfig.from_pretrained(
             model_args.config_name if model_args.config_name else model_args.model_name_or_path,
             cache_dir=model_args.cache_dir
         )
+    if model_args.use_model == "bigbart":
+        if training_args.use_teacher_forcing :
+            config.decoder.num_training_steps = training_args.num_training_steps
+        training_args.model_config = config.decoder
+
+        if data_args.use_doc_type_ids :
+            config.encoder.doc_type_size = 3
+            config.decoder.doc_type_size = 3
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
@@ -164,23 +155,14 @@ def main():
         if model_args.use_model == "longbart":
             return LongformerBartWithDoctypeForConditionalGeneration.from_pretrained(model_args.model_name_or_path, training_args.num_training_steps)
         elif model_args.use_model == "bigbart":
-            # https://discuss.huggingface.co/t/fixing-the-random-seed-in-the-trainer-does-not-produce-the-same-results-across-runs/3442
-            # Producibility parameter initialization
-            encoder = BigBirdModelWithDoctype.from_pretrained("monologg/kobigbird-bert-base",config=config["encoder"])
-            decoder = BartDecoderWithDoctype.from_pretrained("gogamza/kobart-base-v1", config=config["decoder"])
-            
-            # for i in range(1,6):
-            #     encoder.encoder.layer[i] = encoder.encoder.layer[2*i]
-            encoder.encoder.layer = encoder.encoder.layer[:config["encoder"].encoder_layers]
-            decoder.embed_tokens = encoder.embeddings.word_embeddings
-            return EncoderDecoderModel(encoder = encoder, decoder = decoder)     
+            return EncoderDecoderModel.from_pretrained(model_args.model_name_or_path, config=config)     
         else :
             return AutoModelForSeq2SeqLM.from_pretrained(
                 model_args.model_name_or_path,
                 from_tf=bool(".ckpt" in model_args.model_name_or_path),
                 config=config
             )
-    
+
     prep_fn  = partial(preprocess_function, tokenizer=tokenizer, data_args=data_args)
     train_dataset = train_dataset.map(
         prep_fn,
