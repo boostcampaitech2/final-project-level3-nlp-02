@@ -265,7 +265,7 @@ class LongformerBartEncoderWithDocType(BartPretrainedModel):
         if self.doc_type_tokens is not None :
             doc_type = self.doc_type_tokens(doc_type_ids)
             hidden_states += doc_type
-
+        
         hidden_states = self.layernorm_embedding(hidden_states)
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
@@ -377,6 +377,7 @@ class LongformerBartWithDoctypeForConditionalGeneration(BartPretrainedModel):
         self.decoder = BartDecoder(config, self.shared)
         self.register_buffer("final_logits_bias", torch.zeros((1, self.shared.num_embeddings)))
         self.lm_head = nn.Linear(d_model, self.shared.num_embeddings, bias=False)
+        self.embed_scale = math.sqrt(config.d_model) if config.scale_embedding else 1.0
 
         self.num_training_steps = config.num_training_steps if "num_training_steps" in dir(config) else None
         self.cur_training_steps = 0
@@ -490,21 +491,43 @@ class LongformerBartWithDoctypeForConditionalGeneration(BartPretrainedModel):
                 return_dict=return_dict,
             )
 
+            # method1 :argmex
+            # lm_logits_softmax = torch.softmax(lm_logits, dim=-1) # (batch_size, seq_size, vocab_size)
+            # prediction_output_ids = torch.argmax(lm_logits_softmax,dim=-1) # (batch_size, seq_size)
+            # is_teacher_forcing = torch.bernoulli(torch.rand_like(decoder_input_ids.float())).bool()
+            # decoder_input_ids[~is_teacher_forcing] = prediction_output_ids[~is_teacher_forcing] 
+            # del lm_logits
+            # del lm_logits_softmax
+            # del prediction_output_ids
+            # del is_teacher_forcing
+            # del decoder_hidden_states
+
             decoder_hidden_states = decoder_outputs[0] # (batch_size, seq_size, hidden_size) 
             lm_logits = self.lm_head(decoder_hidden_states) + self.final_logits_bias # (batch_size, seq_size, vocab_size)
-            lm_logits_softmax = torch.softmax(lm_logits, dim=-1) # (batch_size, seq_size, vocab_size)
-            prediction_output_ids = torch.argmax(lm_logits_softmax,dim=-1) # (batch_size, seq_size)
-            is_teacher_forcing = torch.bernoulli(torch.rand_like(decoder_input_ids.float())).bool()
-            decoder_input_ids[~is_teacher_forcing] = prediction_output_ids[~is_teacher_forcing] 
+            lm_logits_softmax = torch.softmax(lm_logits,dim=-1)
+            topk_logits, topk_indices = torch.topk(lm_logits_softmax,k=5,dim=-1)
+            is_topk_indices_used = topk_logits.sum(dim=-1) > 0.7
+            # method2 : top-5
+            topk_token_hidden_state = self.shared(topk_indices)
+            topk_token_hidden_state_mean = torch.mean(topk_token_hidden_state, dim=-2)*self.embed_scale
+            decoder_inputs_embeds = self.shared(decoder_input_ids)
+            decoder_inputs_embeds[is_topk_indices_used] = topk_token_hidden_state_mean[is_topk_indices_used]
+            decoder_input_ids=None
+            self.decoder.train() 
+
+            del decoder_hidden_states
             del lm_logits
             del lm_logits_softmax
-            del prediction_output_ids
-            del is_teacher_forcing
-            del decoder_hidden_states
-
+            del topk_logits
+            del topk_indices
+            del is_topk_indices_used
+            del topk_token_hidden_state
+            del topk_token_hidden_state_mean
+        
+            
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
         # 2-stage decoder
-        self.decoder.train()   
+          
         decoder_outputs = self.decoder(
             input_ids=decoder_input_ids, # prediction output id & decoder input id 와 섞은 id가 들어가야 함             
             attention_mask=decoder_attention_mask,          

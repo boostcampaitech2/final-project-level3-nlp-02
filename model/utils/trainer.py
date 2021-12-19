@@ -141,8 +141,10 @@ class Seq2SeqTrainerWithConditionalDocType(Seq2SeqTrainer):
             'labels': torch.cat([inputs['labels'], inputs['labels'].clone()], 0),
             # 'decoder_input_ids': torch.cat([inputs['decoder_input_ids'], inputs['decoder_input_ids'].clone()], 0),
         } # 두 번 forward 하기 힘드니까 concate해서 한 번에 feed 하고 잘라주는 형식입니다.
+
         if 'doc_type_ids' in inputs:
-            concat_inputs['doc_type_ids'] = torch.cat([inputs['doc_type_ids'], inputs['doc_type_ids'].clone()], 0)
+            concat_inputs['doc_type_ids'] = torch.cat([inputs['doc_type_ids'], inputs['doc_type_ids'].clone()], 0)\
+                
         if self.use_amp:
             if version.parse(torch.__version__) >= version.parse("1.10"):
                 with autocast(dtype=self.amp_dtype):
@@ -174,6 +176,7 @@ class Seq2SeqTrainerWithConditionalDocType(Seq2SeqTrainer):
         How the loss is computed by Trainer. By default, all models return the loss in the first element.
         Subclass and override for custom behavior.
         """
+        
         if not self.args.use_rdrop and self.args.label_smoothing_factor == 0:
             return super().compute_loss(model, inputs)
 

@@ -2,7 +2,7 @@
 import re
 
 class Preprocessor :
-    def __init__(self ) :
+    def __init__(self) :
         # 일본어, 한국어, 한자, 기본 문자, 구두점, 문장 기호
         self.private_comp = re.compile('[\ue000-\uf8ff]')
         self.outrange_comp = re.compile('[^\u3040-\u30ff\
@@ -55,3 +55,9 @@ class Filter :
         if len(data['title']) < self.min_size or len(data['title']) > self.max_size:
             return False
         return True
+
+if  __name__ == "main" :
+    text = "불법으로 결론 난 열풍, 돈 버는 게임(P2E"
+    pcs = Preprocessor()
+    title = pcs.post_process(text)
+    print(title)

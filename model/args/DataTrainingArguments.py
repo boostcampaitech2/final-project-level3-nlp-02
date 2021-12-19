@@ -127,3 +127,9 @@ class DataTrainingArguments:
             "help": "whether to ba a part of datasets (default=False)" 
         }, 
     )
+    use_preprocessing: bool = field(
+         default=False, 
+         metadata={ 
+            "help": "whether to preprocess(default=False)" 
+        }, 
+    )

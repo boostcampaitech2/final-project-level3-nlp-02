@@ -4,31 +4,34 @@
 ## 학습 파라미터 : epoch, weight decay, learning rate, warmup steps
 
 ########## pretraining #################
-python train.py \
---do_train \
---is_part \
---use_doc_type_ids \
---num_train_epochs 10 \
---preprocessing_num_workers 1 \
---output_dir checkpoint/lB_fine_512_LbSm_rdrop_Prep \
---logging_steps 2000 \
---relative_eval_steps 10 \
---project_name longformerbart \
---per_device_train_batch_size 8 \
---gradient_accumulation_steps 4 \
---load_best_model_at_end True \
---use_model longbart \
---model_name_or_path metamong1/longbartwithdoctype \
---wandb_unique_tag lB_fine_512_LbSm_rdrop_Prep \
---dropout 0.3 \
---learning_rate 1e-4 \
---warmup_steps 10000 \
---weight_decay 1e-4 \
---adam_beta1  0.9 \
---adam_beta2  0.999 \
---adam_epsilon 1e-06 \
---use_rdrop True \
---label_smoothing_factor 0.1
+# python pretrain.py \
+# --do_train \
+# --is_pretrain \
+# --output_dir model/longformerbart_pretrain_V1_trial3 \
+# --num_train_epochs 10 \
+# --logging_steps 2000 \
+# --save_strategy epoch \
+# --evaluation_strategy no \
+# --max_source_length 2048 \
+# --max_target_length 2048 \
+# --project_name longformerbart \
+# --per_device_train_batch_size 2 \
+# --gradient_accumulation_steps 4 \
+# --wandb_unique_tag longformerBart_pretraining_V1 \
+# --hidden_size 128 \
+# --encoder_layer_size 3 \
+# --decoder_layer_size 3 \
+# --attention_head_size 4 \
+# --attention_window_size 32 \
+# --dropout 0.5 \
+# --learning_rate 0.11 \
+# --warmup_steps 10000 \
+# --weight_decay 1e-2 \
+# --adam_beta1  0.9 \
+# --adam_beta2  0.999 \
+# --adam_epsilon 1e-06 \
+# --num_samples 10 \
+# --is_noam
 
 
 # 1. h_dim 128/256 => 논문 => 128 / 256
@@ -47,8 +50,8 @@ python train.py \
 
 # python train.py \
 # --do_train \
-# --output_dir checkpoint/rdroptest_nolabelsmoothed \
-# --num_train_epochs 100 \
+# --output_dir model/baseV1.0_Kobart \
+# --num_train_epochs 1 \
 # --learning_rate 3e-05 \
 # --max_source_length 1024 \
 # --max_target_length 128 \
@@ -57,11 +60,8 @@ python train.py \
 # --es_patience 3 \
 # --load_best_model_at_end True \
 # --project_name baseV1.0_Kobart \
-# --wandb_unique_tag rdroptest_nolabelsmoothed \
-# --save_total_limit 3 \
-# --num_samples 10 \
-# --overwrite_output_dir \
-# --use_rdrop True
+# --wandb_unique_tag kobartV1_ep3_lr3e05_len1024_R50_rdrop_merge \
+# --use_rdrop True \
 # --label_smoothing_factor 0.1 # BART rdrop 사용시 필수
 
 # python train.py \
@@ -101,29 +101,36 @@ python train.py \
 
 ######### bigbirdbart ##########
 
-# python train.py \
-# --model_name_or_path monologg/kobigbird-bert-base \
-# --use_model bigbart \
-# --do_train \
-# --output_dir checkpoint/kobigbirdbart_ep3_bs2_noam \
-# --overwrite_output_dir \
-# --num_train_epochs 3 \
-# --learning_rate 0.15 \
-# --max_source_length 4096 \
-# --max_target_length 128 \
-# --metric_for_best_model rougeLsum \
-# --relative_eval_steps 10 \
-# --es_patience 3 \
-# --load_best_model_at_end True \
-# --project_name kobigbirdbart \
-# --wandb_unique_tag kobigbirdbart_ep3_bs2_noam \
-# --per_device_train_batch_size 2 \
-# --per_device_eval_batch_size 8 \
-# --is_part True \
-# --is_noam True \
-# --warmup_steps 2000
+python train.py \
+--model_name_or_path metamong1/bigbird-bart-base \
+--use_model bigbart \
+--do_train \
+--output_dir checkpoint/kobigbirdbart_prepro_ep3_bs16_lr1e4_noam_RD_top6 \
+--overwrite_output_dir \
+--num_train_epochs 3 \
+--max_source_length 4096 \
+--max_target_length 128 \
+--metric_for_best_model rougeLsum \
+--relative_eval_steps 10 \
+--es_patience 3 \
+--load_best_model_at_end True \
+--project_name kobigbirdbart \
+--wandb_unique_tag kobigbirdbart_prepro_ep3_bs16_lr1e4_noam_RD_top6 \
+--per_device_train_batch_size 1 \
+--gradient_accumulation_steps 16 \
+--per_device_eval_batch_size 8 \
+--is_part True \
+--learning_rate 0.09 \
+--is_noam True \
+--warmup_steps 1000 \
+--use_rdrop True \
+--label_smoothing_factor 0.1
+#--use_teacher_forcing True
+
+
 
 # python predict.py \
-# --model_name_or_path checkpoint/baseV1.0_Kobart \
-# --num_beams 3
+# --model_name_or_path /opt/ml/final_project/model/checkpoint/kobigbirdbart \
+# --tokenizer_name monologg/kobigbird-bert-base \
+# --num_beams 3 \
 # --use_model bigbart

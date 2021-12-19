@@ -34,13 +34,7 @@ from utils.rouge import compute_metrics
 from optimization.knowledge_distillation import DistillationTrainer, TinyTrainer
 
 from models.modeling_longformerbart import LongformerBartConfig, LongformerBartWithDoctypeForConditionalGeneration
-from models.modeling_kobigbird_bart import (
-    EncoderDecoderModel, 
-    BigBirdConfigWithDoctype, 
-    BartConfigWithDoctype, 
-    BigBirdModelWithDoctype, 
-    BartDecoderWithDoctype
-)
+from models.modeling_kobigbird_bart import EncoderDecoderModel
 
 def seed_everything(seed):
     torch.manual_seed(seed)
@@ -79,12 +73,13 @@ def main():
     
     dataset_name = "metamong1/summarization"
     datasets = load_dataset(dataset_name + "_part" if data_args.is_part else dataset_name, use_auth_token=USE_AUTH_TOKEN)
-    data_preprocessor = Preprocessor()
-    data_filter = Filter(min_size=5, max_size=100)
 
-    ## data preprocessing
-    datasets = datasets.map(data_preprocessor.for_train)
-    datasets = datasets.filter(data_filter)
+    if data_args.use_preprocessing:
+        data_preprocessor = Preprocessor()
+        data_filter = Filter(min_size=5, max_size=100)
+        datasets = datasets.map(data_preprocessor.for_train)
+        datasets = datasets.filter(data_filter)
+        data_args.preprocessing_num_workers = 1
 
     train_dataset = datasets['train']
     valid_dataset = datasets['validation']
@@ -101,7 +96,7 @@ def main():
     print('** Dataset example')
     print(f"[for Train Dataset] : {train_dataset[0]['title']}")
     print(f"[for Valid Dataset] : {valid_dataset[0]['title']}")
-
+    
     column_names = train_dataset.column_names
     if data_args.relative_eval_steps :
         # Train 동안 relative_eval_steps count 회수 만큼 evaluation 
@@ -115,26 +110,28 @@ def main():
     print(f"valid_dataset length: {len(valid_dataset)}")
     print(f"eval_steps: {training_args.eval_steps}")
 
-   
-    if model_args.use_model=="bigbart":
-        config = {}
-        config["encoder"] = BigBirdConfigWithDoctype.from_pretrained("monologg/kobigbird-bert-base")
-        config["decoder"] = BartConfigWithDoctype.from_pretrained("gogamza/kobart-base-v1")
-        
-        config["encoder"].encoder_layers = 6
-        config["decoder"].vocab_size = config["encoder"].vocab_size
-        config["decoder"].pad_token_id = config["encoder"].pad_token_id
-        config["decoder"].max_position_embeddings = data_args.max_target_length
-        training_args.model_config = config["decoder"]
-
-        if data_args.use_doc_type_ids :
-            config["encoder"].doc_type_size = 3
-            config["decoder"].doc_type_size = 3
-    elif model_args.use_model=="auto" :
+    
+    # model별 config 호출
+    if model_args.use_model=="longbart" :
+        config = LongformerBartConfig.from_pretrained("metamong1/longbartwithdoctype")
+        data_args.max_source_length = config.max_position_embeddings
+        data_args.max_target_length = config.max_target_positions
+        model_args.attention_window_size = config.attention_window[0]
+        training_args.model_config = config
+    else :
         config = AutoConfig.from_pretrained(
             model_args.config_name if model_args.config_name else model_args.model_name_or_path,
             cache_dir=model_args.cache_dir
         )
+    if model_args.use_model == "bigbart":
+        training_args.model_config = config.decoder
+
+        if data_args.use_doc_type_ids :
+            config.encoder.doc_type_size = 3
+            config.decoder.doc_type_size = 3
+
+    if training_args.use_teacher_forcing:
+        config.num_training_steps =  iter_by_epoch * training_args.num_train_epochs
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
@@ -147,25 +144,17 @@ def main():
             model = LongformerBartWithDoctypeForConditionalGeneration.from_pretrained(model_args.model_name_or_path)
             model.config.dropout = model_args.dropout
             model.config.attention_dropout = model_args.dropout
+            model.num_training_steps = config.num_training_steps
             return model
         elif model_args.use_model == "bigbart":
-            # https://discuss.huggingface.co/t/fixing-the-random-seed-in-the-trainer-does-not-produce-the-same-results-across-runs/3442
-            # Producibility parameter initialization
-            encoder = BigBirdModelWithDoctype.from_pretrained("monologg/kobigbird-bert-base",config=config["encoder"])
-            decoder = BartDecoderWithDoctype.from_pretrained("gogamza/kobart-base-v1", config=config["decoder"])
-            
-            for i in range(1,6):
-                encoder.encoder.layer[i] = encoder.encoder.layer[2*i]
-            encoder.encoder.layer = encoder.encoder.layer[:config["encoder"].encoder_layers]
-            decoder.embed_tokens = encoder.embeddings.word_embeddings
-            return EncoderDecoderModel(encoder = encoder, decoder = decoder)     
+            return EncoderDecoderModel.from_pretrained(model_args.model_name_or_path, config=config)     
         else :
             return AutoModelForSeq2SeqLM.from_pretrained(
                 model_args.model_name_or_path,
                 from_tf=bool(".ckpt" in model_args.model_name_or_path),
                 config=config
             )
-    
+
     prep_fn  = partial(preprocess_function, tokenizer=tokenizer, data_args=data_args)
     train_dataset = train_dataset.map(
         prep_fn,
