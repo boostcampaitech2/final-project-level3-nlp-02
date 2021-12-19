@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import math
 from typing import Optional, Union, List, Any, Dict, Tuple
-from transformers.data.data_collator import DataCollatorForSeq2Seq, DataCollatorForLanguageModeling
+from transformers.data.data_collator import DataCollatorMixin, DataCollatorForSeq2Seq
 from transformers.tokenization_utils import PreTrainedTokenizerBase, BatchEncoding
 
 class DataCollatorForSeq2SeqWithDocType(DataCollatorForSeq2Seq):
@@ -90,8 +90,9 @@ class DataCollatorForTextInfillingDocType:
             max_doc_type_length = max(len(l) for l in doc_type_ids)
             padding_side = self.tokenizer.padding_side
             for feature in features:
-                if  (max_doc_type_length % self.pad_to_multiple_of != 0) :
-                    max_doc_type_length = ((max_doc_type_length // self.pad_to_multiple_of) + 1) * self.pad_to_multiple_of
+                if self.pad_to_multiple_of is not None :
+                    if  (max_doc_type_length % self.pad_to_multiple_of != 0) :
+                        max_doc_type_length = ((max_doc_type_length // self.pad_to_multiple_of) + 1) * self.pad_to_multiple_of
 
                 remainder = [0] * (max_doc_type_length - len(feature["doc_type_ids"]))
                 if isinstance(feature["doc_type_ids"], list):
@@ -115,7 +116,7 @@ class DataCollatorForTextInfillingDocType:
             batch["input_ids"], batch["labels"], batch["doc_type_ids"] = self.mask_tokens(batch,special_tokens_mask)
         else :
             batch["input_ids"], batch["labels"] = self.mask_tokens(batch,special_tokens_mask)
-
+        breakpoint()
         return batch
 
     def mask_tokens(self,

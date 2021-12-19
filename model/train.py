@@ -34,13 +34,7 @@ from utils.rouge import compute_metrics
 from optimization.knowledge_distillation import DistillationTrainer, TinyTrainer
 
 from models.modeling_longformerbart import LongformerBartConfig, LongformerBartWithDoctypeForConditionalGeneration
-from models.modeling_kobigbird_bart import (
-    EncoderDecoderModel, 
-    BigBirdConfigWithDoctype, 
-    BartConfigWithDoctype, 
-    BigBirdModelWithDoctype, 
-    BartDecoderWithDoctype
-)
+from models.modeling_kobigbird_bart import EncoderDecoderModel
 
 def seed_everything(seed):
     torch.manual_seed(seed)
