@@ -192,10 +192,7 @@ class LongformerBartEncoderWithDocType(BartPretrainedModel):
         else:
             self.embed_tokens = nn.Embedding(config.vocab_size, self.embed_dim, self.padding_idx)
 
-        if doc_type_tokens is not None:
-            self.doc_type_tokens = doc_type_tokens
-        else:
-            self.doc_type_tokens = nn.Embedding(config.doc_type_size, self.embed_dim, 0)
+        self.doc_type_tokens = doc_type_tokens
         
         self.embed_positions = BartLearnedPositionalEmbedding(
             self.max_source_positions,
@@ -264,8 +261,11 @@ class LongformerBartEncoderWithDocType(BartPretrainedModel):
             inputs_embeds = self.embed_tokens(input_ids) * self.embed_scale
 
         embed_pos = self.embed_positions(input_shape)
-        doc_type = self.doc_type_tokens(doc_type_ids)
-        hidden_states = inputs_embeds + embed_pos + doc_type
+        hidden_states = inputs_embeds + embed_pos
+        if self.doc_type_tokens is not None :
+            doc_type = self.doc_type_tokens(doc_type_ids)
+            hidden_states += doc_type
+        
         hidden_states = self.layernorm_embedding(hidden_states)
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
@@ -362,43 +362,22 @@ class LongformerBartSeq2SeqModelOutput(ModelOutput):
     encoder_attentions_global: Optional[Tuple[torch.FloatTensor]] = None
 
 
-class CustomBartDecoder(BartDecoder):
-    def __init__(self,config: BartConfig, embed_tokens: Optional[nn.Embedding] = None):
-        super().__init__(config, embed_tokens)
-        self.dropout = config.dropout
-        self.layerdrop = config.decoder_layerdrop
-        self.padding_idx = config.pad_token_id
-        self.max_target_positions = config.max_target_positions
-        self.embed_scale = math.sqrt(config.d_model) if config.scale_embedding else 1.0
-
-        if embed_tokens is not None:
-            self.embed_tokens = embed_tokens
-        else:
-            self.embed_tokens = nn.Embedding(config.vocab_size, config.d_model, self.padding_idx)
-
-        self.embed_positions = BartLearnedPositionalEmbedding(
-            config.max_target_positions,
-            config.d_model,
-        )
-        self.layers = nn.ModuleList([BartDecoderLayer(config) for _ in range(config.decoder_layers)])
-        self.layernorm_embedding = nn.LayerNorm(config.d_model)
-
-        self.init_weights()
-        self.gradient_checkpointing = False
-
-
 class LongformerBartWithDoctypeForConditionalGeneration(BartPretrainedModel):
     def __init__(self,config: LongformerBartConfig):
         super().__init__(config)
         vocab_size, d_model, padding_idx = config.vocab_size, config.d_model, config.pad_token_id
         self.shared = nn.Embedding(vocab_size, d_model, padding_idx)
         
-        self.padding_idx = padding_idx
-        self.doc_type_shared = nn.Embedding(config.doc_type_size, config.d_model, 0)
+        if config.doc_type_size > 1 :
+            self.doc_type_shared = nn.Embedding(config.doc_type_size, config.d_model, 0)
+        else :
+            self.doc_type_shared = None
+
         self.encoder = LongformerBartEncoderWithDocType(config, self.shared, self.doc_type_shared)
         self.decoder = BartDecoder(config, self.shared)
         self.register_buffer("final_logits_bias", torch.zeros((1, self.shared.num_embeddings)))
         self.lm_head = nn.Linear(d_model, self.shared.num_embeddings, bias=False)
+        self.embed_scale = math.sqrt(config.d_model) if config.scale_embedding else 1.0
 
         self.num_training_steps = config.num_training_steps if "num_training_steps" in dir(config) else None
         self.cur_training_steps = 0
@@ -454,7 +433,7 @@ class LongformerBartWithDoctypeForConditionalGeneration(BartPretrainedModel):
 
         # Scheduled Sampling, Teacher Forcing ratio
         if self.num_training_steps is None:
-            teacher_training_ratio = -100
+            teacher_training_ratio = 100
         else:
             self.cur_training_steps += 1
             teacher_training_ratio = (self.num_training_steps - self.cur_training_steps) / self.num_training_steps
@@ -484,6 +463,7 @@ class LongformerBartWithDoctypeForConditionalGeneration(BartPretrainedModel):
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
             )
+
         # If the user passed a tuple for encoder_outputs, we wrap it in a BaseModelOutput when return_dict=True
         elif return_dict and not isinstance(encoder_outputs, LongformerBartBaseModeloutput):
             encoder_outputs = LongformerBartBaseModeloutput(
@@ -511,21 +491,43 @@ class LongformerBartWithDoctypeForConditionalGeneration(BartPretrainedModel):
                 return_dict=return_dict,
             )
 
+            # method1 :argmex
+            # lm_logits_softmax = torch.softmax(lm_logits, dim=-1) # (batch_size, seq_size, vocab_size)
+            # prediction_output_ids = torch.argmax(lm_logits_softmax,dim=-1) # (batch_size, seq_size)
+            # is_teacher_forcing = torch.bernoulli(torch.rand_like(decoder_input_ids.float())).bool()
+            # decoder_input_ids[~is_teacher_forcing] = prediction_output_ids[~is_teacher_forcing] 
+            # del lm_logits
+            # del lm_logits_softmax
+            # del prediction_output_ids
+            # del is_teacher_forcing
+            # del decoder_hidden_states
+
             decoder_hidden_states = decoder_outputs[0] # (batch_size, seq_size, hidden_size) 
             lm_logits = self.lm_head(decoder_hidden_states) + self.final_logits_bias # (batch_size, seq_size, vocab_size)
-            lm_logits_softmax = torch.softmax(lm_logits, dim=-1) # (batch_size, seq_size, vocab_size)
-            prediction_output_ids = torch.argmax(lm_logits_softmax,dim=-1) # (batch_size, seq_size)
-            is_teacher_forcing = torch.bernoulli(torch.rand_like(decoder_input_ids.float())).bool()
-            decoder_input_ids[~is_teacher_forcing] = prediction_output_ids[~is_teacher_forcing] 
+            lm_logits_softmax = torch.softmax(lm_logits,dim=-1)
+            topk_logits, topk_indices = torch.topk(lm_logits_softmax,k=5,dim=-1)
+            is_topk_indices_used = topk_logits.sum(dim=-1) > 0.7
+            # method2 : top-5
+            topk_token_hidden_state = self.shared(topk_indices)
+            topk_token_hidden_state_mean = torch.mean(topk_token_hidden_state, dim=-2)*self.embed_scale
+            decoder_inputs_embeds = self.shared(decoder_input_ids)
+            decoder_inputs_embeds[is_topk_indices_used] = topk_token_hidden_state_mean[is_topk_indices_used]
+            decoder_input_ids=None
+            self.decoder.train() 
+
+            del decoder_hidden_states
             del lm_logits
             del lm_logits_softmax
-            del prediction_output_ids
-            del is_teacher_forcing
-            del decoder_hidden_states
-
+            del topk_logits
+            del topk_indices
+            del is_topk_indices_used
+            del topk_token_hidden_state
+            del topk_token_hidden_state_mean
+        
+            
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
         # 2-stage decoder
-        self.decoder.train()   
+          
         decoder_outputs = self.decoder(
             input_ids=decoder_input_ids, # prediction output id & decoder input id 와 섞은 id가 들어가야 함             
             attention_mask=decoder_attention_mask,          

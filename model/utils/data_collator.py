@@ -34,10 +34,13 @@ class DataCollatorForSeq2SeqWithDocType(DataCollatorForSeq2Seq):
         # We have to pad the doc_type_ids before calling `tokenizer.pad` as this method won't pad them and needs them of the
         # same length to return tensors.
         if doc_type_ids is not None:
-            max_label_length = max(len(l) for l in doc_type_ids)
+            max_doc_type_length = max(len(l) for l in doc_type_ids)
             padding_side = self.tokenizer.padding_side
             for feature in features:
-                remainder = [0] * (max_label_length - len(feature["doc_type_ids"]))
+                if  (max_doc_type_length % self.pad_to_multiple_of != 0) :
+                    max_doc_type_length = ((max_doc_type_length // self.pad_to_multiple_of) + 1) * self.pad_to_multiple_of
+
+                remainder = [0] * (max_doc_type_length - len(feature["doc_type_ids"]))
                 if isinstance(feature["doc_type_ids"], list):
                     feature["doc_type_ids"] = (
                         feature["doc_type_ids"] + remainder if padding_side == "right" else remainder + feature["doc_type_ids"]
@@ -108,23 +111,21 @@ class DataCollatorForTextInfillingDocType:
         
         # If special token mask has been preprocessed, pop it from the dict.
         special_tokens_mask = batch.pop("special_tokens_mask", None)
-
-        # batch["input_ids"], batch["labels"], ddd = self.mask_tokens(
-        batch["input_ids"], batch["labels"], batch["doc_type_ids"] = self.mask_tokens(
-            batch["input_ids"],batch["doc_type_ids"],
-            special_tokens_mask=special_tokens_mask
-        )
+        if doc_type_ids is not None:
+            batch["input_ids"], batch["labels"], batch["doc_type_ids"] = self.mask_tokens(batch,special_tokens_mask)
+        else :
+            batch["input_ids"], batch["labels"] = self.mask_tokens(batch,special_tokens_mask)
 
         return batch
 
     def mask_tokens(self,
-                    input_ids: torch.Tensor,
-                    doc_type_ids: Optional[torch.Tensor] = None,
+                    batch: Dict,
                     special_tokens_mask: Optional[torch.Tensor] = None,
                     ) -> Tuple[torch.Tensor, torch.Tensor]:
+        input_ids = batch["input_ids"]
         labels = input_ids.clone()
-        new_doc_type_ids = doc_type_ids.clone()
-        
+        doc_type_ids = batch["doc_type_ids"] if "doc_type_ids" in batch else None
+
         if special_tokens_mask is None:
             special_tokens_mask = [
                 self.tokenizer.get_special_tokens_mask(val, already_has_special_tokens=True) for val in labels.tolist()
@@ -187,17 +188,22 @@ class DataCollatorForTextInfillingDocType:
         # remove mask tokens that are not starts of spans
         to_remove = mask.bool() & mask.bool().roll(shifts=(0,1), dims=(0,1))
         new_input_ids = torch.full_like(input_ids, fill_value=self.tokenizer.pad_token_id)
-        new_doc_type_ids = torch.full_like(input_ids, fill_value=0)
+
+        new_doc_type_ids = torch.full_like(input_ids, fill_value=0) # check 2
 
         for i, example in enumerate(torch.split(input_ids, split_size_or_sections=1, dim=0)):
             new_example = example[0][~to_remove[i]]
             new_input_ids[i, 0:new_example.shape[0]] = new_example
             
-            doc_type_ids_ = doc_type_ids[i][~to_remove[i]]
-            new_doc_type_ids[i, 0:doc_type_ids_.shape[0]] = doc_type_ids_
+            if doc_type_ids is not None :
+                doc_type_ids_ = doc_type_ids[i][~to_remove[i]]
+                new_doc_type_ids[i, 0:doc_type_ids_.shape[0]] = doc_type_ids_ 
 
         # return new_input_ids, labels, {"doc_type_ids" : doc_type_ids,"new_doc_type_ids" : new_doc_type_ids,"to_remove" : to_remove}
-        return new_input_ids, labels, new_doc_type_ids
+        if doc_type_ids is not None :
+            return new_input_ids, labels, new_doc_type_ids
+        else :
+            return new_input_ids, labels
     
     def _torch_collate_batch(self, examples, tokenizer, pad_to_multiple_of: Optional[int] = None):
         """Collate `examples` into a batch, using the information in `tokenizer` for padding if necessary."""
@@ -234,4 +240,3 @@ class DataCollatorForTextInfillingDocType:
             else:
                 result[i, -example.shape[0] :] = example
         return result
-        

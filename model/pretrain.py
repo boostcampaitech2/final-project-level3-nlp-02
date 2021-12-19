@@ -11,9 +11,10 @@ from functools import partial
 from transformers import HfArgumentParser
 from datasets import load_dataset
 from transformers.trainer_utils import get_last_checkpoint
-from utils.processor import preprocess_function
-from utils.trainer import Seq2SeqTrainerWithConditionalDocType
-from utils.data_collator import DataCollatorForTextInfillingDocType
+from transformers import AutoTokenizer
+from utils_.processor import preprocess_function
+from utils_.trainer import Seq2SeqTrainerWithConditionalDocType
+from utils_.data_collator import DataCollatorForTextInfillingDocType
 
 from args import (
     DataTrainingArguments,
@@ -70,6 +71,11 @@ def main():
     config = LongformerBartConfig.from_pretrained(
             model_args.config_name if model_args.config_name else model_args.model_name_or_path)
     
+    if training_args.use_teacher_forcing:
+        iter_by_epoch = math.ceil(len(train_dataset)/training_args.per_device_train_batch_size)
+        config.num_training_steps =  iter_by_epoch * training_args.num_train_epochs
+
+    config.doc_type_size = 4 if data_args.use_doc_type_ids else -1
     config.encoder_layers = model_args.encoder_layer_size
     config.decoder_layers = model_args.decoder_layer_size
     config.d_model = model_args.hidden_size
@@ -83,20 +89,19 @@ def main():
     config.encoder_ffn_dim = config.d_model*4
     config.decoder_ffn_dim = config.d_model*4
     
-    from transformers import AutoTokenizer
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast_tokenizer
     )
 
-    iter_by_epoch = math.ceil(len(train_dataset)/training_args.per_device_train_batch_size)
-    training_args.num_training_steps =  iter_by_epoch * training_args.num_train_epochs
     training_args.model_config = config
     def model_init():
+        # https://discuss.huggingface.co/t/fixing-the-random-seed-in-the-trainer-does-not-produce-the-same-results-across-runs/3442
+        # Producibility parameter initialization
         model = LongformerBartWithDoctypeForConditionalGeneration._from_config(training_args.model_config)
         return model
-    
+        
     prep_fn  = partial(preprocess_function, tokenizer=tokenizer, data_args=data_args)
     train_dataset = train_dataset.map(
         prep_fn,
@@ -110,7 +115,7 @@ def main():
     label_pad_token_id = -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
 
     data_collator = DataCollatorForTextInfillingDocType(
-        tokenizer=tokenizer,
+        tokenizer,
         label_pad_token_id=label_pad_token_id,
         pad_to_multiple_of=model_args.attention_window_size,
     )
@@ -126,7 +131,7 @@ def main():
         name=log_args.wandb_unique_tag
     )
     wandb.config.update(training_args)
-    
+
     trainer = Seq2SeqTrainerWithConditionalDocType(
         args=training_args,
         train_dataset=train_dataset,
@@ -160,9 +165,9 @@ def main():
         )
         metrics["train_samples"] = min(max_train_samples, len(train_dataset))
         
+        trainer.save_model()
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
-        trainer.save_model()
         trainer.save_state()
 
     

@@ -79,13 +79,14 @@ def main():
     
     dataset_name = "metamong1/summarization"
     datasets = load_dataset(dataset_name + "_part" if data_args.is_part else dataset_name, use_auth_token=USE_AUTH_TOKEN)
-    data_preprocessor = Preprocessor()
-    data_filter = Filter(min_size=5, max_size=100)
 
-    ## data preprocessing
-    datasets = datasets.map(data_preprocessor.for_train)
-    datasets = datasets.filter(data_filter)
-    
+    if data_args.use_preprocessing:
+        data_preprocessor = Preprocessor()
+        data_filter = Filter(min_size=5, max_size=100)
+        datasets = datasets.map(data_preprocessor.for_train)
+        datasets = datasets.filter(data_filter)
+        data_args.preprocessing_num_workers = 1
+
     train_dataset = datasets['train']
     valid_dataset = datasets['validation']
 
@@ -101,7 +102,7 @@ def main():
     print('** Dataset example')
     print(f"[for Train Dataset] : {train_dataset[0]['title']}")
     print(f"[for Valid Dataset] : {valid_dataset[0]['title']}")
-
+    
     column_names = train_dataset.column_names
     if data_args.relative_eval_steps :
         # Train 동안 relative_eval_steps count 회수 만큼 evaluation 
@@ -117,20 +118,12 @@ def main():
 
     
     # model별 config 호출
-    if model_args.use_model == "longbart":
-        config = LongformerBartConfig.from_pretrained(
-                model_args.config_name if model_args.config_name else model_args.model_name_or_path)
-
-        config.encoder_layers = model_args.encoder_layer_size
-        config.decoder_layers = model_args.decoder_layer_size
-        config.d_model = model_args.hidden_size
-        config.encoder_attention_heads = model_args.attention_head_size
-        config.decoder_attention_heads = model_args.attention_head_size
-        config.max_position_embeddings = data_args.max_source_length
-        config.max_target_positions = data_args.max_target_length
-        config.attention_window = [model_args.attention_window_size]*model_args.encoder_layer_size
-        config.attention_dropout = model_args.dropout
-        config.dropout = model_args.dropout
+    if model_args.use_model=="longbart" :
+        config = LongformerBartConfig.from_pretrained("metamong1/longbartwithdoctype")
+        data_args.max_source_length = config.max_position_embeddings
+        data_args.max_target_length = config.max_target_positions
+        model_args.attention_window_size = config.attention_window[0]
+        training_args.model_config = config
     else :
         config = AutoConfig.from_pretrained(
             model_args.config_name if model_args.config_name else model_args.model_name_or_path,
@@ -145,6 +138,9 @@ def main():
             config.encoder.doc_type_size = 3
             config.decoder.doc_type_size = 3
 
+    if training_args.use_teacher_forcing:
+        config.num_training_steps =  iter_by_epoch * training_args.num_train_epochs
+
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
@@ -153,7 +149,11 @@ def main():
     
     def model_init():
         if model_args.use_model == "longbart":
-            return LongformerBartWithDoctypeForConditionalGeneration.from_pretrained(model_args.model_name_or_path, training_args.num_training_steps)
+            model = LongformerBartWithDoctypeForConditionalGeneration.from_pretrained(model_args.model_name_or_path)
+            model.config.dropout = model_args.dropout
+            model.config.attention_dropout = model_args.dropout
+            model.num_training_steps = config.num_training_steps
+            return model
         elif model_args.use_model == "bigbart":
             return EncoderDecoderModel.from_pretrained(model_args.model_name_or_path, config=config)     
         else :

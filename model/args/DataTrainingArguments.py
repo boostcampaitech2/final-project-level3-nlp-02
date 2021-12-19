@@ -19,7 +19,7 @@ class DataTrainingArguments:
         metadata={"help": "Overwrite the cached training and evaluation sets"},
     )
     preprocessing_num_workers: Optional[int] = field(
-        default=1,
+        default=4,
         metadata={"help": "The number of processes to use for the preprocessing."},
     )
     max_source_length: int = field(
@@ -125,5 +125,11 @@ class DataTrainingArguments:
          default=False, 
          metadata={ 
             "help": "whether to ba a part of datasets (default=False)" 
+        }, 
+    )
+    use_preprocessing: bool = field(
+         default=False, 
+         metadata={ 
+            "help": "whether to preprocess(default=False)" 
         }, 
     )
