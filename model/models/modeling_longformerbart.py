@@ -264,7 +264,7 @@ class LongformerBartEncoderWithDocType(BartPretrainedModel):
         hidden_states = inputs_embeds + embed_pos
         if self.doc_type_tokens is not None :
             doc_type = self.doc_type_tokens(doc_type_ids)
-            hidden_states += + doc_type
+            hidden_states += doc_type
         
         hidden_states = self.layernorm_embedding(hidden_states)
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
@@ -474,7 +474,6 @@ class LongformerBartWithDoctypeForConditionalGeneration(BartPretrainedModel):
             )
 
         # 1-stage decoder
-        teacher_training_ratio = 0
         if teacher_training_ratio < use_outputs_ratio:
             self.decoder.eval()
             decoder_outputs = self.decoder(
@@ -514,6 +513,8 @@ class LongformerBartWithDoctypeForConditionalGeneration(BartPretrainedModel):
             decoder_inputs_embeds = self.shared(decoder_input_ids)
             decoder_inputs_embeds[is_topk_indices_used] = topk_token_hidden_state_mean[is_topk_indices_used]
             decoder_input_ids=None
+            self.decoder.train() 
+
             del decoder_hidden_states
             del lm_logits
             del lm_logits_softmax
@@ -522,14 +523,11 @@ class LongformerBartWithDoctypeForConditionalGeneration(BartPretrainedModel):
             del is_topk_indices_used
             del topk_token_hidden_state
             del topk_token_hidden_state_mean
-            
-
-            
-            
+        
             
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
         # 2-stage decoder
-        self.decoder.train()   
+          
         decoder_outputs = self.decoder(
             input_ids=decoder_input_ids, # prediction output id & decoder input id 와 섞은 id가 들어가야 함             
             attention_mask=decoder_attention_mask,          

@@ -26,8 +26,6 @@ from args import (
     CustomSeq2SeqTrainingArguments
 )
 
-
-
 from utils.trainer import Seq2SeqTrainerWithConditionalDocType
 from utils.data_preprocessor import Preprocessor, Filter
 from utils.data_collator import DataCollatorForSeq2SeqWithDocType
@@ -117,8 +115,6 @@ def main():
     print(f"valid_dataset length: {len(valid_dataset)}")
     print(f"eval_steps: {training_args.eval_steps}")
 
-   
-
     if model_args.use_model=="longbart" :
         config = LongformerBartConfig.from_pretrained("metamong1/longbartwithdoctype")
         data_args.max_source_length = config.max_position_embeddings
@@ -159,7 +155,7 @@ def main():
             model = LongformerBartWithDoctypeForConditionalGeneration.from_pretrained(model_args.model_name_or_path)
             model.config.dropout = model_args.dropout
             model.config.attention_dropout = model_args.dropout
-
+            model.num_training_steps = config.num_training_steps
             return model
         elif model_args.use_model == "bigbart":
             # https://discuss.huggingface.co/t/fixing-the-random-seed-in-the-trainer-does-not-produce-the-same-results-across-runs/3442

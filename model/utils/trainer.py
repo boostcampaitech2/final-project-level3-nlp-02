@@ -142,6 +142,9 @@ class Seq2SeqTrainerWithConditionalDocType(Seq2SeqTrainer):
             # 'decoder_input_ids': torch.cat([inputs['decoder_input_ids'], inputs['decoder_input_ids'].clone()], 0),
         } # 두 번 forward 하기 힘드니까 concate해서 한 번에 feed 하고 잘라주는 형식입니다.
 
+        if 'doc_type_ids' in inputs:
+            concat_inputs['doc_type_ids'] = torch.cat([inputs['doc_type_ids'], inputs['doc_type_ids'].clone()], 0)\
+                
         if self.use_amp:
             if version.parse(torch.__version__) >= version.parse("1.10"):
                 with autocast(dtype=self.amp_dtype):
