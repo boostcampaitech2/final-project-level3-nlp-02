@@ -1,4 +1,5 @@
 import torch
+import math
 from typing import List, Tuple, Optional
 
 def split_tensor_by_words(
@@ -64,3 +65,9 @@ def model_forward(model, tokenizer, text, title) :
 
     st_cross_attn = format_attention(outputs.cross_attentions)
     return st_cross_attn, enc_input_ids, dec_input_ids
+
+def position(node_num):
+    rad = math.radians(360/node_num)
+    x_pos = [math.cos(rad*node)*1000+500 for node in range(node_num)]
+    y_pos = [math.sin(rad*node)*1000+500 for node in range(node_num)]
+    return x_pos, y_pos
