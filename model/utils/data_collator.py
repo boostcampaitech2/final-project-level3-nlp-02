@@ -104,7 +104,6 @@ class DataCollatorForTextInfillingDocType:
                 else:
                     feature["doc_type_ids"] = np.concatenate([remainder, feature["doc_type_ids"]]).astype(np.int64)
 
-
         if isinstance(features[0], (dict, BatchEncoding)):
             batch = self.tokenizer.pad(features, return_tensors="pt", pad_to_multiple_of=self.pad_to_multiple_of)
         else:
@@ -116,7 +115,7 @@ class DataCollatorForTextInfillingDocType:
             batch["input_ids"], batch["labels"], batch["doc_type_ids"] = self.mask_tokens(batch,special_tokens_mask)
         else :
             batch["input_ids"], batch["labels"] = self.mask_tokens(batch,special_tokens_mask)
-        breakpoint()
+
         return batch
 
     def mask_tokens(self,

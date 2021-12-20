@@ -127,11 +127,14 @@ def main():
         training_args.model_config = config.decoder
 
         if data_args.use_doc_type_ids :
-            config.encoder.doc_type_size = 3
-            config.decoder.doc_type_size = 3
+            config.encoder.doc_type_size = 4
+            config.decoder.doc_type_size = 4
 
     if training_args.use_teacher_forcing:
-        config.num_training_steps =  iter_by_epoch * training_args.num_train_epochs
+        if model_args.use_model == "bigbart":
+            config.decoder.num_training_steps = training_args.num_training_steps
+        else :
+            config.num_training_steps = training_args.num_training_steps
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
