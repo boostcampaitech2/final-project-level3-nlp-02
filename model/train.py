@@ -98,7 +98,7 @@ def main():
     print(f"[for Valid Dataset] : {valid_dataset[0]['title']}")
     
     column_names = train_dataset.column_names
-    if data_args.relative_eval_steps :
+    if data_args.relative_eval_steps is not None :
         # Train 동안 relative_eval_steps count 회수 만큼 evaluation 
         # 전체 iteration에서 eval 횟수로 나누어 evaluation step
         iter_by_epoch = math.ceil(len(train_dataset)/(training_args.per_device_train_batch_size*training_args.gradient_accumulation_steps))
@@ -127,11 +127,14 @@ def main():
         training_args.model_config = config.decoder
 
         if data_args.use_doc_type_ids :
-            config.encoder.doc_type_size = 3
-            config.decoder.doc_type_size = 3
+            config.encoder.doc_type_size = 4
+            config.decoder.doc_type_size = 4
 
     if training_args.use_teacher_forcing:
-        config.num_training_steps =  iter_by_epoch * training_args.num_train_epochs
+        if model_args.use_model == "bigbart":
+            config.decoder.num_training_steps = training_args.num_training_steps
+        else :
+            config.num_training_steps = training_args.num_training_steps
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
