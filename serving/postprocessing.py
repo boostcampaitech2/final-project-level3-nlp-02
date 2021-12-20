@@ -1,7 +1,9 @@
 import re
 from kss import split_sentences
 
-def pair_check(text) -> str:
+def pair_check(
+        text: str
+    ) -> str:
     pair_dict = {
         "[":"]", "{":"}", "(":")","『":"』",
         "“":"”", "‘":"’",'\"':'\"', "\'":"\'"}
@@ -30,7 +32,9 @@ class TitlePostProcessor :
         self.escaped_space = re.compile(r'\\r|\\n|\\\r|\\\n')
         self.special_char = re.compile(r' -|·$| /')
     
-    def post_process(self, title) :
+    def post_process(self, 
+            title: str
+        ) -> str:
         title = self.escaped_space.sub('', title)
         init_title_len = len(title)
         
@@ -52,7 +56,7 @@ class TitlePostProcessor :
         return title
 
 if __name__ == "__main__" :
-    text = "불법으로 결론 난 열풍, 돈 버는 게임(P2E"
+    text = "도애 홍석모의 금강산 유기 - (간관록 일고"
     pcs = TitlePostProcessor()
     title = pcs.post_process(text)
     print(title)

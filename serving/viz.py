@@ -1,43 +1,26 @@
 import torch
 import numpy as np
+import uuid
+from collections import Counter
+from pyvis.network import Network
 import plotly.graph_objects as go
-from utils import split_tensor_by_words, token_to_words
+import streamlit.components.v1 as components
 
-def format_attention(attention, layers=None, heads=None):
-    if layers:
-        attention = [attention[layer_index] for layer_index in layers]
-    squeezed = []
-    for layer_attention in attention:
-        # 1 x num_heads x seq_len x seq_len
-        if len(layer_attention.shape) != 4:
-            raise ValueError("The attention tensor does not have the correct number of dimensions. Make sure you set "
-                             "output_attentions=True when initializing your model.")
-        layer_attention = layer_attention.squeeze(0)
-        if heads:
-            layer_attention = layer_attention[heads]    
-        squeezed.append(layer_attention)
-    # num_layers x num_heads x seq_len x seq_len
-    return torch.stack(squeezed)
+from typing import List
 
 def rgb_to_hex(r, g, b):
     r, g, b = int(r), int(g), int(b)
     return '#' + hex(r)[2:].zfill(2) + hex(g)[2:].zfill(2) + hex(b)[2:].zfill(2)
 
-def highlighter(color, word):
+def highlighter(
+        color: str,
+        word: str
+    ) -> str :
     word = '<span style="background-color:' +color+ '">' +word+ '</span>'
     return word
 
-def text_highlight(model, tokenizer, text, title) :
-    encoder_input_ids = tokenizer(text, return_tensors="pt", add_special_tokens=True).input_ids
-    decoder_input_ids = tokenizer(title, return_tensors="pt", add_special_tokens=True).input_ids
-
-    encoder_text = tokenizer.convert_ids_to_tokens(encoder_input_ids[0])    
-    
-    outputs = model(input_ids=encoder_input_ids, decoder_input_ids=decoder_input_ids)
-
-    st_cross_attention = format_attention(outputs.cross_attentions)
-
-    layer_mat = st_cross_attention.detach()
+def text_highlight(st_cross_attn, encoder_tokens) :
+    layer_mat = st_cross_attn.detach()
     last_h_layer_mat = torch.mean(layer_mat, 1)[-1] ## mean by head side, last layer
     enc_mat = torch.mean(last_h_layer_mat, 0) ## mean by decoder id side
 
@@ -45,39 +28,29 @@ def text_highlight(model, tokenizer, text, title) :
     enc_mat /= enc_mat.max()
     
     colors = [rgb_to_hex(255, 255, 255*(1-attn_s)) for attn_s in enc_mat.numpy()]
-    higlighted_text = ''.join([highlighter(colors[i], word) for i, word in enumerate(encoder_text)])
+    higlighted_text = ''.join([highlighter(colors[i], word) for i, word in enumerate(encoder_tokens)])
     higlighted_text = higlighted_text.replace('▁',' ')
 
     return higlighted_text
 
-def cross_attention(model, tokenizer, text, title, model_type, layer) :
-    encoder_input_ids = tokenizer(text, return_tensors="pt", add_special_tokens=True).input_ids
-    decoder_input_ids = tokenizer(title, return_tensors="pt", add_special_tokens=True).input_ids
+def attention_heatmap(
+        st_cross_attn: torch.Tensor, # (layer, head, dec_len, enc_len)
+        enc_split: List[str],
+        dec_split: List[str],
+        enc_split_indices: List[int],
+        dec_split_indices: List[int],
+        layer: int
+    ) -> go.Figure :
 
-    encoder_tokens = tokenizer.convert_ids_to_tokens(encoder_input_ids[0])
-    decoder_tokens = tokenizer.convert_ids_to_tokens(decoder_input_ids[0])
-    
-    outputs = model(input_ids=encoder_input_ids, decoder_input_ids=decoder_input_ids)
+    last_h_layer_mat = torch.mean(st_cross_attn.detach(), 1)[layer] # (dec_len, enc_len)
 
-    st_cross_attention = format_attention(outputs.cross_attentions)
-
-    layer_mat = st_cross_attention.detach()
-    # last_h_layer_mat = torch.mean(layer_mat, 1)[-1] ## mean by head side, last layer
-    last_h_layer_mat = torch.mean(layer_mat, 1)[layer] 
-
-    dec_split_words_indices = split_tensor_by_words(decoder_tokens, model_type)
-    enc_split_words_indices = split_tensor_by_words(encoder_tokens, model_type)
-
-    dec_space_split_text = token_to_words(decoder_tokens, model_type)
-    enc_space_split_text = token_to_words(encoder_tokens, model_type)
-
-    splited_by_spaces = torch.split(last_h_layer_mat, dec_split_words_indices, dim=0)
+    splited_by_spaces = torch.split(last_h_layer_mat, dec_split_indices, dim=0)
     merging_tensor = []
     for split_tensor in splited_by_spaces :
         merging_tensor.append(torch.mean(split_tensor, 0))
     merged_attn = torch.stack(merging_tensor, dim=0)
 
-    splited_by_spaces = torch.split(merged_attn, enc_split_words_indices, dim=1)
+    splited_by_spaces = torch.split(merged_attn, enc_split_indices, dim=1)
     merging_tensor = []
     for split_tensor in splited_by_spaces :
         merging_tensor.append(torch.mean(split_tensor, 1))
@@ -85,8 +58,8 @@ def cross_attention(model, tokenizer, text, title, model_type, layer) :
 
     go_fig = go.Figure(go.Heatmap(
                     z=merged_attn,
-                    x=enc_space_split_text,
-                    y=dec_space_split_text,
+                    x=enc_split,
+                    y=dec_split,
                     colorscale='Reds',
                     hoverongaps=False))
     go_fig.update_layout(
@@ -98,3 +71,91 @@ def cross_attention(model, tokenizer, text, title, model_type, layer) :
     )
     go_fig.update_xaxes(tickangle = 45)
     return go_fig
+    
+def update_mapping(
+        uuid_mapping:dict,
+        node_list: List[str]
+    ) -> List[int]:
+    unique_node_list = []
+    for node in node_list:
+        # Create unique ID for node
+        unique_name = uuid.uuid4()
+        unique_node_list.append(unique_name.int)
+        uuid_mapping[unique_name]=node
+    return unique_node_list
+    
+
+def transparent_by_attn(
+        attn_matrix: torch.Tensor,
+        dec_idx: int,
+        enc_idx: int,
+    ) -> str:
+    ori_hex = "#8080C0"
+    attn_matrix = (attn_matrix - attn_matrix.min())/(attn_matrix.max()-attn_matrix.min())
+    if attn_matrix[dec_idx][enc_idx] == 1:
+        return ori_hex
+    else :
+        ## 투명도 설정
+        transparent = '{0:02d}'.format(int(round(attn_matrix[dec_idx][enc_idx], 2) * 50) + 50) 
+        ori_hex = "#8080C0" + transparent
+        return ori_hex
+
+def network_html(
+        st_cross_attn: torch.Tensor, # (layer, head, dec_len, enc_len)
+        enc_split: List[str],
+        dec_split: List[str],
+        enc_split_indices: List[int],
+        dec_split_indices: List[int],
+    ) -> None :
+    uuid_net = Network("600px", "1000px")
+    uuid_mapping = {}
+    
+    enc_nodes = update_mapping(uuid_mapping, enc_split)
+    dec_nodes = update_mapping(uuid_mapping, dec_split)
+
+    last_h_layer_mat = torch.mean(st_cross_attn.detach(), 1)[-1] # (dec_len, enc_len)
+    splited_by_spaces = torch.split(last_h_layer_mat, dec_split_indices, dim=0)
+    merging_tensor = []
+    for split_tensor in splited_by_spaces :
+        merging_tensor.append(torch.mean(split_tensor, 0))
+    merged_attn = torch.stack(merging_tensor, dim=0)
+
+    splited_by_spaces = torch.split(merged_attn, enc_split_indices, dim=1)
+    merging_tensor = []
+    for split_tensor in splited_by_spaces :
+        merging_tensor.append(torch.mean(split_tensor, 1))
+    merged_attn = torch.stack(merging_tensor, dim=1)
+
+    attn_matrix = merged_attn.type(torch.half).detach().numpy().astype(np.float) # (dec_len, enc_len)
+
+    attn_max = attn_matrix.max()
+    attn_min = attn_matrix.min()
+    for dec_idx, dec_token in enumerate(dec_nodes) :
+        uuid_net.add_node(dec_token, label=dec_split[dec_idx], color='#CD6155', size=20)
+        for enc_idx, enc_token in enumerate(enc_nodes) :
+            if np.mean(attn_matrix) < attn_matrix[dec_idx][enc_idx] : ## 이거는 임시로 했는데, node, edge 줄일 방법 
+                tp_color = transparent_by_attn(attn_matrix, dec_idx, enc_idx)
+                norm_attn = 5*(attn_matrix[dec_idx][enc_idx]-attn_min)/(attn_max-attn_min)
+                uuid_net.add_node(enc_token, label=enc_split[enc_idx], color=tp_color, size=20) ##  투명도를 attn score          
+                uuid_net.add_edge(dec_token, enc_token, width=norm_attn)
+
+    for n in uuid_net.nodes:
+        if n['id'] in dec_nodes:
+            n.update({'physics': False})
+        elif n['id'] in enc_nodes:
+            n.update({'physics': True})
+
+    edges_counter = Counter([edges['to'] for edges in uuid_net.get_edges()])
+    nodes_over2 = [ k for k,v in edges_counter.items() if v >= len(dec_split)/2]
+    nodes_over2 += list(set([edges['from'] for edges in uuid_net.get_edges()]))
+
+    for n in uuid_net.nodes:
+        if n['id'] in nodes_over2 :
+            n.update({'physics': False})
+    # uuid_net.show_buttons(filter_=['physics', 'nodes', 'edges'])
+    html_name = 'uuid_example1.html'
+    uuid_net.write_html(html_name)
+
+    HtmlFile = open(html_name, 'r', encoding='utf-8')
+    source_code = HtmlFile.read()
+    components.html(source_code, height = 900, width=900)

@@ -55,9 +55,3 @@ class Filter :
         if len(data['title']) < self.min_size or len(data['title']) > self.max_size:
             return False
         return True
-
-if  __name__ == "main" :
-    text = "불법으로 결론 난 열풍, 돈 버는 게임(P2E"
-    pcs = Preprocessor()
-    title = pcs.post_process(text)
-    print(title)

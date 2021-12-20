@@ -17,7 +17,7 @@ def compute(predictions, references, tokenizer, rouge_types=None, use_agregator=
 		predictions = " ".join(mecab.usable_pos(predictions))
 		references = " ".join(mecab.usable_pos(references))
 
-	scorer = CustomRouge(rouge_types=rouge_types, tokenizer=tokenizer)
+	scorer = KoreanRouge(rouge_types=rouge_types, tokenizer=tokenizer)
 	if use_agregator:
 		aggregator = scoring.BootstrapAggregator()
 	else:
@@ -74,7 +74,7 @@ class MecabForUsablePos(Mecab):
         tagged = self.pos(phrase)
         return [s for s, t in tagged if t.startswith(usable_tag)]
 
-class CustomRouge(rouge_scorer.RougeScorer) :
+class KoreanRouge(rouge_scorer.RougeScorer) :
 	""" 
 	https://github.com/google-research/google-research/blob/master/rouge
 	google-research의 RougeScorer를 상속.
@@ -84,7 +84,7 @@ class CustomRouge(rouge_scorer.RougeScorer) :
 		tokenizer (PreTrainedTokenizerBase): 모델에 맞는 tokenizer
 	"""
 	def __init__(self, rouge_types, tokenizer) :
-		super(CustomRouge).__init__()
+		super(KoreanRouge).__init__()
 		self.rouge_types = rouge_types
 		self.tokenizer = tokenizer
 

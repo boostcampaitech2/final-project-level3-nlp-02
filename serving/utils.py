@@ -1,5 +1,10 @@
+import torch
+from typing import List, Tuple, Optional
 
-def split_tensor_by_words(text_tokens, model_type) :
+def split_tensor_by_words(
+        text_tokens: List[str],
+        model_type: str
+    ) -> List[int] :
     i = 0
     split_words_indices = []
     if model_type != 'kobigbirdbart' :    
@@ -20,7 +25,10 @@ def split_tensor_by_words(text_tokens, model_type) :
     split_words_indices = split_words_indices[1:]
     return split_words_indices
 
-def token_to_words(text_tokens, model_type) :
+def token_to_words(
+        text_tokens: List[str],
+        model_type: str
+    ) -> List[str] :
     if model_type != 'kobigbirdbart' :    
         join_text = ''.join(text_tokens).replace('▁', ' ')    
         space_text = join_text.split(' ')[1:]
@@ -28,4 +36,31 @@ def token_to_words(text_tokens, model_type) :
         join_text = ' '.join(text_tokens).replace(' ##', '')
         space_text = join_text.split(' ')
     return space_text
-    
+
+def format_attention(
+        attention,
+        layers: Optional[int]=None,
+        heads: Optional[int]=None
+    ) -> torch.Tensor : # (layer, head, dec, enc)
+    if layers:
+        attention = [attention[layer_index] for layer_index in layers]
+    squeezed = []
+    for layer_attention in attention:
+        # 1 x num_heads x seq_len x seq_len
+        if len(layer_attention.shape) != 4:
+            raise ValueError("The attention tensor does not have the correct number of dimensions. Make sure you set "
+                             "output_attentions=True when initializing your model.")
+        layer_attention = layer_attention.squeeze(0)
+        if heads:
+            layer_attention = layer_attention[heads]    
+        squeezed.append(layer_attention)
+    return torch.stack(squeezed)
+
+def model_forward(model, tokenizer, text, title) :
+    enc_input_ids = tokenizer(text, return_tensors="pt", add_special_tokens=True).input_ids
+    dec_input_ids = tokenizer(title, return_tensors="pt", add_special_tokens=True).input_ids
+
+    outputs = model(input_ids=enc_input_ids, decoder_input_ids=dec_input_ids)
+
+    st_cross_attn = format_attention(outputs.cross_attentions)
+    return st_cross_attn, enc_input_ids, dec_input_ids
