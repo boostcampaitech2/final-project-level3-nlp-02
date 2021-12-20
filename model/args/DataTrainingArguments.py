@@ -98,7 +98,7 @@ class DataTrainingArguments:
         },
     )
     relative_eval_steps: int = field(
-        default=10,
+        default=None,
         metadata={  
             "help": "Calculate the evaluation step relative to the size of the data set."
         },

@@ -98,7 +98,7 @@ def main():
     print(f"[for Valid Dataset] : {valid_dataset[0]['title']}")
     
     column_names = train_dataset.column_names
-    if data_args.relative_eval_steps :
+    if data_args.relative_eval_steps is not None :
         # Train 동안 relative_eval_steps count 회수 만큼 evaluation 
         # 전체 iteration에서 eval 횟수로 나누어 evaluation step
         iter_by_epoch = math.ceil(len(train_dataset)/(training_args.per_device_train_batch_size*training_args.gradient_accumulation_steps))
