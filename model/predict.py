@@ -46,7 +46,6 @@ def main() :
 
     if model_args.use_model == "bigbart" :
         model = EncoderDecoderModel.from_pretrained(model_args.model_name_or_path)
-        model.encoder.encoder.layer = model.encoder.encoder.layer[:model.config.encoder.encoder_layers]
     else :
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_args.model_name_or_path,

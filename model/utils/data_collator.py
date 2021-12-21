@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import math
 from typing import Optional, Union, List, Any, Dict, Tuple
-from transformers.data.data_collator import DataCollatorForSeq2Seq, DataCollatorForLanguageModeling
+from transformers.data.data_collator import DataCollatorMixin, DataCollatorForSeq2Seq
 from transformers.tokenization_utils import PreTrainedTokenizerBase, BatchEncoding
 
 class DataCollatorForSeq2SeqWithDocType(DataCollatorForSeq2Seq):
@@ -34,10 +34,13 @@ class DataCollatorForSeq2SeqWithDocType(DataCollatorForSeq2Seq):
         # We have to pad the doc_type_ids before calling `tokenizer.pad` as this method won't pad them and needs them of the
         # same length to return tensors.
         if doc_type_ids is not None:
-            max_label_length = max(len(l) for l in doc_type_ids)
+            max_doc_type_length = max(len(l) for l in doc_type_ids)
             padding_side = self.tokenizer.padding_side
             for feature in features:
-                remainder = [0] * (max_label_length - len(feature["doc_type_ids"]))
+                if  (max_doc_type_length % self.pad_to_multiple_of != 0) :
+                    max_doc_type_length = ((max_doc_type_length // self.pad_to_multiple_of) + 1) * self.pad_to_multiple_of
+
+                remainder = [0] * (max_doc_type_length - len(feature["doc_type_ids"]))
                 if isinstance(feature["doc_type_ids"], list):
                     feature["doc_type_ids"] = (
                         feature["doc_type_ids"] + remainder if padding_side == "right" else remainder + feature["doc_type_ids"]
@@ -87,8 +90,9 @@ class DataCollatorForTextInfillingDocType:
             max_doc_type_length = max(len(l) for l in doc_type_ids)
             padding_side = self.tokenizer.padding_side
             for feature in features:
-                if  (max_doc_type_length % self.pad_to_multiple_of != 0) :
-                    max_doc_type_length = ((max_doc_type_length // self.pad_to_multiple_of) + 1) * self.pad_to_multiple_of
+                if self.pad_to_multiple_of is not None :
+                    if  (max_doc_type_length % self.pad_to_multiple_of != 0) :
+                        max_doc_type_length = ((max_doc_type_length // self.pad_to_multiple_of) + 1) * self.pad_to_multiple_of
 
                 remainder = [0] * (max_doc_type_length - len(feature["doc_type_ids"]))
                 if isinstance(feature["doc_type_ids"], list):
@@ -99,7 +103,6 @@ class DataCollatorForTextInfillingDocType:
                     feature["doc_type_ids"] = np.concatenate([feature["doc_type_ids"], remainder]).astype(np.int64)
                 else:
                     feature["doc_type_ids"] = np.concatenate([remainder, feature["doc_type_ids"]]).astype(np.int64)
-
 
         if isinstance(features[0], (dict, BatchEncoding)):
             batch = self.tokenizer.pad(features, return_tensors="pt", pad_to_multiple_of=self.pad_to_multiple_of)

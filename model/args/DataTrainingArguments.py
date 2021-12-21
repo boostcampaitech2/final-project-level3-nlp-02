@@ -98,7 +98,7 @@ class DataTrainingArguments:
         },
     )
     relative_eval_steps: int = field(
-        default=10,
+        default=None,
         metadata={  
             "help": "Calculate the evaluation step relative to the size of the data set."
         },
@@ -125,5 +125,11 @@ class DataTrainingArguments:
          default=False, 
          metadata={ 
             "help": "whether to ba a part of datasets (default=False)" 
+        }, 
+    )
+    use_preprocessing: bool = field(
+         default=False, 
+         metadata={ 
+            "help": "whether to preprocess(default=False)" 
         }, 
     )
