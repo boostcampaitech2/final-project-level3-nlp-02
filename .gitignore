@@ -5,4 +5,5 @@ checkpoint/
 *.ipynb
 mecab**
 distilbart**
+*.html
 model/*.sh

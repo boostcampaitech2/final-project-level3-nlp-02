@@ -1,11 +1,12 @@
 import sys
+
+from torch.functional import _return_output
 sys.path.append('..')
 
 import streamlit as st
 import torch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from model.models.modeling_kobigbird_bart import EncoderDecoderModel
-
 from model.models.modeling_longformerbart import LongformerBartWithDoctypeForConditionalGeneration
 
 @st.cache(allow_output_mutation=True)
@@ -39,9 +40,16 @@ def get_prediction(
         with torch.no_grad():
             input_ids = tokenizer(input_text, add_special_tokens=True)
             if "bigbart" not in model_name :
-                input_ids = [tokenizer.bos_token_id] + input_ids['input_ids'][:-2] + [tokenizer.eos_token_id]
-           
+                input_ids = [tokenizer.bos_token_id] + input_ids['input_ids'][:-1]# + [tokenizer.eos_token_id]
+            
             generated_tokens = model.generate(
-            torch.tensor([input_ids]), num_beams=num_beam, **generation_args.__dict__)
+                torch.tensor([input_ids]),
+                num_beams=num_beam,
+                **generation_args.__dict__)
+
+            # generated_tokens = model.generate(
+            #     input_ids['input_ids'],
+            #     attention_mask=input_ids["attention_mask"],
+            #     num_beams=num_beam)#, **generation_args.__dict__)
 
             return generated_tokens

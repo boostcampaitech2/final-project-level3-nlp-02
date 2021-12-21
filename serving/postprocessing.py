@@ -1,7 +1,9 @@
 import re
 from kss import split_sentences
 
-def pair_check(text) -> str:
+def pair_check(
+        text: str
+    ) -> str:
     pair_dict = {
         "[":"]", "{":"}", "(":")","『":"』",
         "“":"”", "‘":"’",'\"':'\"', "\'":"\'"}
@@ -26,13 +28,14 @@ def pair_check(text) -> str:
         return stack[-1]
 
 class TitlePostProcessor :
-    def __init__(self, title) :
+    def __init__(self) :
         self.escaped_space = re.compile(r'\\r|\\n|\\\r|\\\n')
-        self.special_char = re.compile(r' -|·$')
-        self.title = title
+        self.special_char = re.compile(r' -|·$| /')
     
-    def post_process(self) :
-        title = self.escaped_space.sub('', self.title)
+    def post_process(self, 
+            title: str
+        ) -> str:
+        title = self.escaped_space.sub('', title)
         init_title_len = len(title)
         
         while True :
@@ -46,14 +49,14 @@ class TitlePostProcessor :
                 else :
                     title = title[:unmatched_idx] + title[unmatched_idx+1:]
 
-        titles = split_sentences(title)
-        title = "".join(titles[:-1]) if len(titles) != 1 else titles[0]
+        # titles = split_sentences(title)
+        # title = "".join(titles[:-1]) if len(titles) != 1 else titles[0]
         title = title.rstrip()
         title = self.special_char.sub('', title)
         return title
 
 if __name__ == "__main__" :
-    text = "홍역 전국 확산...당진지역 감염 주의보!\\r\\n(홍역"
-    pcs = TitlePostProcessor(text)
-    title = pcs.post_process()
+    text = "도애 홍석모의 금강산 유기 - (간관록 일고"
+    pcs = TitlePostProcessor()
+    title = pcs.post_process(text)
     print(title)
