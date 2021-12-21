@@ -1,10 +1,14 @@
+import sys
+sys.path.append('..')
+
+
 import numpy as np
 import torch
 
 from pathlib import Path
 from time import perf_counter
 
-from rouge import compute
+from utils.rouge import compute
 
 
 class PerformanceBenchmark:
