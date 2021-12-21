@@ -3,4 +3,5 @@ wandb/
 checkpoint/
 *.env
 *.ipynb
+*.html
 model/*.sh

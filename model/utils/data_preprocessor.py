@@ -2,7 +2,7 @@
 import re
 
 class Preprocessor :
-    def __init__(self ) :
+    def __init__(self) :
         # 일본어, 한국어, 한자, 기본 문자, 구두점, 문장 기호
         self.private_comp = re.compile('[\ue000-\uf8ff]')
         self.outrange_comp = re.compile('[^\u3040-\u30ff\
