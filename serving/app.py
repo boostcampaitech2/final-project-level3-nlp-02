@@ -12,6 +12,15 @@ from utils import split_tensor_by_words, token_to_words, model_forward
 from GenerationArguments import GenerationArguments
 from IPython.core.display import HTML
 
+from elasticsearch import Elasticsearch
+from dotenv import load_dotenv
+import os
+load_dotenv(dotenv_path='elasticsearch.env')
+username = os.getenv("username") 
+password = os.getenv('password')
+
+es = Elasticsearch(['https://final-project.es.us-east4.gcp.elastic-cloud.com'], port=9243, http_auth=(username, password))
+
 generation_args = GenerationArguments()
 
 @contextmanager
@@ -44,6 +53,12 @@ def main(args):
             title = pcs.post_process(title)
             st.write(f'Titles: {title}')
 
+            retrieve_result = es.search(index='summarization_nori', body={'size':5, 'query':{'match':{'text':input_text}}})
+            for i in range(5):
+                st.write(f"Retrieved Result{i+1}: {retrieve_result['hits']['hits'][i]['_source']['title']}")
+
+
+
     if st.button('Attention Highlight'):
         st_cross_attn, enc_input_ids, dec_input_ids = model_forward(model, tokenizer, input_text, title)
         enc_tokens = tokenizer.convert_ids_to_tokens(enc_input_ids[0])
@@ -71,7 +86,7 @@ if __name__ == "__main__" :
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='../model/checkpoint/baseV1.0_Kobart_ep3_0.7') #baseV1.0_Kobart
+    parser.add_argument('--model', type=str, default='gogamza/kobart-base-v1') #baseV1.0_Kobart
     parser.add_argument('--use_model', type=str, default='kobart', help='kobigbirdbart or etc')
     args = parser.parse_args()
 
