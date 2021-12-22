@@ -24,7 +24,7 @@ from args import (
     CustomSeq2SeqTrainingArguments,
 )
 
-from models.modeling_longformerbart import LongformerBartConfig, LongformerBartWithDoctypeForConditionalGeneration
+from models.modeling_longformer_bart import LongformerBartConfig, LongformerBartWithDoctypeForConditionalGeneration
 from models.modeling_kobigbird_bart import (
     EncoderDecoderModel, 
     BigBirdConfigWithDoctype, 

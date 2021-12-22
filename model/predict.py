@@ -18,7 +18,7 @@ from args import (
     GenerationArguments
 )
 
-from utils.processor import preprocess_function
+from utils.processor import preprocess_function_for_prediction
 from utils.data_preprocessor import Preprocessor
 from models.modeling_kobigbird_bart import EncoderDecoderModel
 
@@ -60,7 +60,6 @@ def main() :
     
     # dataset_name = "metamong1/summarization"
     # datasets = load_dataset(dataset_name + "_part" if data_args.is_part else dataset_name, use_auth_token=USE_AUTH_TOKEN)
-    # data_preprocessor = Preprocessor()
     # datasets = datasets.map(data_preprocessor.for_test)
     # valid_dataset = datasets['validation']
 
@@ -70,20 +69,21 @@ def main() :
     #####################
     text = input("요약할 문장을 넣어주세요:")
 
-    input_ids = tokenizer(text, add_special_tokens=True)
-    
-    if model_args.use_model != "bigbart" :
-        input_ids = [tokenizer.bos_token_id] + input_ids['input_ids'][:-2] + [tokenizer.eos_token_id]
-    else :
-        input_ids = input_ids['input_ids']
-    
+    if data_args.use_preprocessing:
+        data_preprocessor = Preprocessor()
+        text = data_preprocessor.for_prediction(text)
+
+    processed_text = preprocess_function_for_prediction(text, "논문", tokenizer, data_args)
+    input_ids = {k: torch.tensor(v) for k,v in processed_text.items()}
+    input_ids['input_ids'] = input_ids['input_ids'].unsqueeze(0)
+
     num_beams = data_args.num_beams
     if num_beams is not None :
         generation_args.num_return_sequences = num_beams
 
     with timer('** Generate title **') :
         summary_ids = model.generate(
-            torch.tensor([input_ids]), num_beams=num_beams, **generation_args.__dict__)
+            **input_ids, num_beams=num_beams, **generation_args.__dict__)
 
         print('** text: ', text)
         # print('** title: ', title)
