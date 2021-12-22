@@ -38,17 +38,18 @@ def main(args):
     beams_input = st.sidebar.slider('Number of beams search', 1, 5, 3, key='beams')
     layer = st.sidebar.slider('Layer', 0, 5, 5, key='layer')
 
-    model_name = args.model
+    
     with timer("load...") :
-        tokenizer, model = load(model_name)
-
+        tokenizer, model = load(args.model)
+    
+    model_name = args.use_model
     input_text = st.text_area('Prompt:', height=200)
     if input_text :
-        with timer("generate...") :
+        with timer("generate...") : 
             generated_tokens = get_prediction(tokenizer, model, model_name, input_text, beams_input, generation_args)
             title = tokenizer.decode(generated_tokens.squeeze().tolist(), skip_special_tokens=True)
             title = re.sub('</s> |</s>|[CLS] | [SEP]', '', title)
-            
+
             pcs = TitlePostProcessor()
             title = pcs.post_process(title)
             st.write(f'Titles: {title}')
@@ -70,8 +71,10 @@ def main(args):
         dec_split_indices = split_tensor_by_words(dec_tokens, model_name)
         enc_split_indices = split_tensor_by_words(enc_tokens, model_name)
 
-        
-        highlighted_text = text_highlight(st_cross_attn, enc_tokens)
+        # print(dec_split_indices)
+        # breakpoint()
+
+        highlighted_text = text_highlight(st_cross_attn, enc_tokens, model_name)
         st.write(HTML(highlighted_text))
                 
         fig = attention_heatmap(st_cross_attn, enc_split, dec_split,
@@ -86,8 +89,8 @@ if __name__ == "__main__" :
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='gogamza/kobart-base-v1') #baseV1.0_Kobart
-    parser.add_argument('--use_model', type=str, default='kobart', help='kobigbirdbart or etc')
+    parser.add_argument('--model', type=str, default='../model/checkpoint/baseV1.0_Kobart_ep3_0.7') #baseV1.0_Kobart
+    parser.add_argument('--use_model', type=str, default='bigbart', help='bigbart or etc')
     args = parser.parse_args()
 
     main(args)
