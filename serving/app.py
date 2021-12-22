@@ -27,7 +27,6 @@ password = os.getenv('password')
 
 es = Elasticsearch(['https://final-project.es.us-east4.gcp.elastic-cloud.com'], port=9243, http_auth=(username, password))
 
-data_args, gen_args = DataTrainingArguments, GenerationArguments
 @contextmanager
 def timer(name) :
     t0 = time.time()
@@ -37,15 +36,15 @@ def timer(name) :
 # SETTING PAGE CONFIG TO WIDE MODE
 st.set_page_config(layout="wide")
 def main(args):
-    # parser = HfArgumentParser(
-    #     (DataTrainingArguments, GenerationArguments)
-    # )
-    # data_args, gen_args = parser.parse_args_into_dataclasses()
-    # data_args.max_source_length = 2048
+    parser = HfArgumentParser(
+        (DataTrainingArguments, GenerationArguments)
+    )
+    data_args, gen_args = parser.parse_args_into_dataclasses()
 
     st.title("Welcome in text generation website")
     st.info("좌측에 본문 내용을 넣어주세요!\n")
     
+    data_args.max_source_length = 2048
     doc_type = st.sidebar.selectbox('문서 타입을 선택해주세요!', ['해당없음', '기사', '논문', '잡지'])
         
     input_text = st.sidebar.text_area('문서 내용을 입력해주세요!', height=500)
@@ -72,19 +71,28 @@ def main(args):
             st.write(f'Titles: {title}')
 
             retrieve_result = es.search(index='summarization_unique', body={'size':5, 'query':{'match':{'text':input_text}}})
-            for i in range(3):
-                ret_title = retrieve_result['hits']['hits'][i]['_source']['title']
-                ret_title = ret_title.replace('`','\'')
-                st.write(f"유사제목 {i+1}: {ret_title}")
+            press_button_1 = st.checkbox(f"유사제목 1: {retrieve_result['hits']['hits'][0]['_source']['title']}")
+            if press_button_1:
+                st.write(f"본문내용: {retrieve_result['hits']['hits'][0]['_source']['text']}")
+            press_button_2 = st.checkbox(f"유사제목 2: {retrieve_result['hits']['hits'][1]['_source']['title']}")
+            if press_button_2:
+                st.write(f"본문내용: {retrieve_result['hits']['hits'][1]['_source']['text']}")
+            press_button_3 = st.checkbox(f"유사제목 3: {retrieve_result['hits']['hits'][2]['_source']['title']}")
+            if press_button_3:
+                st.write(f"본문내용: {retrieve_result['hits']['hits'][2]['_source']['text']}")
+            
+            # for i in range(3):
+            #     ret_title = retrieve_result['hits']['hits'][i]['_source']['title']
+            #     ret_title = ret_title.replace('`','\'')
+            #     st.write(f"유사제목 {i+1}: {ret_title}")
 
-                button = st.button(f"{i+1} 유사제목 본문보기!")
-                if button :
-                    ret_text = retrieve_result['hits']['hits'][i]['_source']['text']
-                    st.write(f"본문내용 {i+1}: {ret_text}")
+            #     button = st.button(f"{i+1} 유사제목 본문보기!")
+            #     if button :
+            #         ret_text = retrieve_result['hits']['hits'][i]['_source']['text']
+            #         st.write(f"본문내용 {i+1}: {ret_text}")
                     
 
     if st.button('Visualization!'):
-        
         st_cross_attn, enc_input_ids, dec_input_ids = model_forward(model, tokenizer, processed_input_text, title)
         enc_tokens = tokenizer.convert_ids_to_tokens(enc_input_ids[0])
         dec_tokens = tokenizer.convert_ids_to_tokens(dec_input_ids[0])
@@ -110,9 +118,7 @@ if __name__ == "__main__" :
     import argparse
 
     parser = argparse.ArgumentParser()
-    # parser.add_argument('--checkpoint', type=str, default='../model/checkpoint/kobigbirdbart_base_ep3_bs8_pre_noam')
     parser.add_argument('--checkpoint', type=str, default='metamong1/bigbart_tapt_ep3_bs16_pre_noam')
-    # parser.add_argument('--use_model', type=str, default='bigbart', help='bart, bigbart, bigbart_tapt or etc..')
     parser.add_argument('--use_model', type=str, default='bigbart_tapt', help='bart, bigbart, bigbart_tapt or etc..')
     args = parser.parse_args()
 

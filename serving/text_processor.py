@@ -1,4 +1,5 @@
 import re
+import streamlit as st
 
 def pair_check(
         text: str
@@ -26,6 +27,7 @@ def pair_check(
     else :
         return stack[-1]
 
+
 class PreProcessor :
     def __init__(self) :
         # 일본어, 한국어, 한자, 기본 문자, 구두점, 문장 기호
@@ -47,7 +49,7 @@ class PreProcessor :
         txt = self.private_comp.sub(' ', txt)
         txt = self.outrange_comp.sub(' ', txt)
         return txt
-    
+    @st.cache
     def pre_process(self,
         txt:str
     ) -> str :
@@ -61,6 +63,7 @@ class PostProcessor :
         self.escaped_space = re.compile(r'\\r|\\n|\\\r|\\\n')
         self.special_char = re.compile(r' -|·$| /')
     
+    @st.cache
     def post_process(self, 
             title: str
         ) -> str:

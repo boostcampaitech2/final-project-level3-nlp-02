@@ -49,7 +49,7 @@ def get_prediction(
             processed_text = preprocess_function_for_prediction(input_text, doc_type, tokenizer, data_args)
             input_ids = {k: torch.tensor(v) for k,v in processed_text.items()}
             input_ids['input_ids'] = input_ids['input_ids'].unsqueeze(0)
-            
+
             generated_tokens = model.generate(
                 **input_ids, num_beams=num_beam, **gen_args.__dict__)
             return generated_tokens

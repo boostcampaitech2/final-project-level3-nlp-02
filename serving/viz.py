@@ -28,7 +28,7 @@ def text_highlight(st_cross_attn, encoder_tokens, model_type) :
     enc_mat /= enc_mat.max()
     
     colors = [rgb_to_hex(255, 255, 255*(1-attn_s)) for attn_s in enc_mat.numpy()]
-    if model_type == 'bigbart' :
+    if 'bigbart' in model_type :
         encoder_tokens = ['▁'+word if '##' not in word else word.replace('##','') for word in encoder_tokens ]
     higlighted_text = ''.join([highlighter(colors[i], word) for i, word in enumerate(encoder_tokens)])
     higlighted_text = higlighted_text.replace('▁',' ')

@@ -8,7 +8,7 @@ def split_tensor_by_words(
     ) -> List[int] :
     i = 0
     split_words_indices = []
-    if model_type != 'bigbart' :    
+    if 'bigbart' not in model_type :    
         for token in text_tokens :
             if '▁' in token:
                 split_words_indices.append(i)
@@ -33,7 +33,7 @@ def token_to_words(
         text_tokens: List[str],
         model_type: str
     ) -> List[str] :
-    if model_type != 'bigbart' :   
+    if 'bigbart' not in model_type :
         join_text = ''.join(text_tokens).replace('▁', ' ')    
         space_text = join_text.split(' ')[1:]
     else :
@@ -71,6 +71,6 @@ def model_forward(model, tokenizer, text, title) :
 
 def position(node_num):
     rad = math.radians(360/node_num)
-    x_pos = [math.cos(rad*node)*700+300 for node in range(node_num)]
-    y_pos = [math.sin(rad*node)*700+300 for node in range(node_num)]
+    x_pos = [math.cos(rad*node)*500+300 for node in range(node_num)]
+    y_pos = [math.sin(rad*node)*500+300 for node in range(node_num)]
     return x_pos, y_pos
