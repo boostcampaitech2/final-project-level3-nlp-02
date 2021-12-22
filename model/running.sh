@@ -100,31 +100,30 @@
 
 
 ######### bigbirdbart ##########
-python train.py \
---output_dir checkpoint/kobigbirdbart_ep5_bs8_noam_pre_RD \
---model_name_or_path metamong1/bigbird-bart-base \
---use_model bigbart \
---do_train \
---overwrite_output_dir \
---num_train_epochs 5 \
---learning_rate 0.15 \
---max_source_length 4096 \
---max_target_length 128 \
---metric_for_best_model rougeLsum \
---relative_eval_steps 10 \
---es_patience 3 \
---load_best_model_at_end True \
---project_name kobigbirdbart \
---wandb_unique_tag kobigbirdbart_ep5_bs8_noam_pre_RD \
---per_device_train_batch_size 1 \
---per_device_eval_batch_size 8 \
---gradient_accumulation_steps 8 \
---is_part True \
---is_noam True \
---warmup_steps 2000 \
---use_preprocessing True \
---use_rdrop True \
---label_smoothing_factor 0.1
+# python train.py \
+# --model_name_or_path metamong1/bigbird-tapt-ep3 \
+# --use_model bigbart \
+# --do_train \
+# --output_dir checkpoint/kobigbirdbart_full_tapt_ep3_bs16_pre_RD \
+# --overwrite_output_dir \
+# --num_train_epochs 3 \
+# --learning_rate 1e-4 \
+# --max_source_length 4096 \
+# --max_target_length 128 \
+# --metric_for_best_model rougeLsum \
+# --es_patience 3 \
+# --load_best_model_at_end True \
+# --project_name kobigbirdbart \
+# --wandb_unique_tag kobigbirdbart_full_tapt_ep3_bs16_pre_RD \
+# --per_device_train_batch_size 1 \
+# --per_device_eval_batch_size 16 \
+# --gradient_accumulation_steps 16 \
+# --use_preprocessing True \
+# --label_smoothing_factor 0.1 \
+# --use_rdrop True \
+# --evaluation_strategy epoch \
+# --save_strategy epoch \
+# --use_doc_type_ids True
 
 # Distilbart
 # python train.py \
@@ -145,10 +144,9 @@ python train.py \
 # --overwrite_output_dir \
 # --wandb_unique_tag distilbart
 
-# python predict.py \
-# --model_name_or_path checkpoint/baseV1.0_Kobart \
-# --num_beams 3
-# --model_name_or_path /opt/ml/final_project/model/checkpoint/kobigbirdbart \
-# --tokenizer_name monologg/kobigbird-bert-base \
-# --num_beams 3 \
-# --use_model bigbart
+python predict.py \
+--model_name_or_path metamong1/bigbird-tapt-ep3 \
+--num_beams 3 \
+--use_model bigbart \
+--use_doc_type_ids True \
+--use_preprocessing

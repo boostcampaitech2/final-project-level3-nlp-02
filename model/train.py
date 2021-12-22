@@ -35,7 +35,7 @@ from optimization.knowledge_distillation import DistillationTrainer, TinyTrainer
 from transformers.models.distilbert.configuration_distilbert import DistilBertConfig
 from transformers import DistilBertTokenizerFast
 from models.modeling_distilbert_bart import DistilBertForConditionalGeneration
-from models.modeling_longformerbart import LongformerBartConfig, LongformerBartWithDoctypeForConditionalGeneration
+from models.modeling_longformer_bart import LongformerBartConfig, LongformerBartWithDoctypeForConditionalGeneration
 from models.modeling_kobigbird_bart import EncoderDecoderModel
 
 def seed_everything(seed):
@@ -136,9 +136,7 @@ def main():
         if model_args.use_model == "bigbart":
             config.decoder.num_training_steps = training_args.num_training_steps
         else :
-            config.num_training_steps = training_args.num_training_steps
-
-        
+            config.num_training_steps = training_args.num_training_steps        
 
     if model_args.use_model=='distilbart':
         config = DistilBertConfig.from_pretrained("monologg/distilkobert")
@@ -159,8 +157,6 @@ def main():
             use_fast=model_args.use_fast_tokenizer
         )
 
-    
-    
     def model_init():
         if model_args.use_model == "longbart":
             model = LongformerBartWithDoctypeForConditionalGeneration.from_pretrained(model_args.model_name_or_path)
