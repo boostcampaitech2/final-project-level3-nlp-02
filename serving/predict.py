@@ -18,7 +18,7 @@ def load(model_name) :
     elif "kobigbirdbart" in model_name:
         tokenizer = AutoTokenizer.from_pretrained('monologg/kobigbird-bert-base')
         model = EncoderDecoderModel.from_pretrained(model_name, output_attentions=True)
-        model.encoder.encoder.layer = model.encoder.encoder.layer[:model.config.encoder.encoder_layers]
+        # model.encoder.encoder.layer = model.encoder.encoder.layer[:model.config.encoder.encoder_layers]
         model.encoder.config.output_attentions = True
         model.decoder.config.output_attentions = True
     else:
