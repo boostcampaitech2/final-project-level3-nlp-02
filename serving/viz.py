@@ -5,7 +5,7 @@ from collections import Counter
 from pyvis.network import Network
 import plotly.graph_objects as go
 import streamlit.components.v1 as components
-
+from utils import position
 from typing import List
 
 def rgb_to_hex(r, g, b):
@@ -131,10 +131,19 @@ def network_html(
 
     attn_max = attn_matrix.max()
     attn_min = attn_matrix.min()
+
+    x_pos_list, y_pos_list = position(len(dec_split))
+
+    threshold = np.mean(attn_matrix)
     for dec_idx, dec_token in enumerate(dec_nodes) :
-        uuid_net.add_node(dec_token, label=dec_split[dec_idx], color='#CD6155', size=20)
+        uuid_net.add_node(dec_token,
+                          label=dec_split[dec_idx],
+                          color='#CD6155',
+                          size=20,
+                          x=x_pos_list[dec_idx],
+                          y=y_pos_list[dec_idx])
         for enc_idx, enc_token in enumerate(enc_nodes) :
-            if np.mean(attn_matrix) < attn_matrix[dec_idx][enc_idx] : ## 이거는 임시로 했는데, node, edge 줄일 방법 
+            if threshold < attn_matrix[dec_idx][enc_idx] : 
                 tp_color = transparent_by_attn(attn_matrix, dec_idx, enc_idx)
                 norm_attn = 5*(attn_matrix[dec_idx][enc_idx]-attn_min)/(attn_max-attn_min)
                 uuid_net.add_node(enc_token, label=enc_split[enc_idx], color=tp_color, size=20) ##  투명도를 attn score          

@@ -3,5 +3,7 @@ wandb/
 checkpoint/
 *.env
 *.ipynb
+mecab**
+distilbart**
 *.html
 model/*.sh

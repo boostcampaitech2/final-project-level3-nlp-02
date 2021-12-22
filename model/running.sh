@@ -126,9 +126,28 @@ python train.py \
 --use_rdrop True \
 --label_smoothing_factor 0.1
 
-
+# Distilbart
+# python train.py \
+# --do_train \
+# --output_dir model/distilbart \
+# --num_train_epochs 5 \
+# --learning_rate 3e-05 \
+# --max_source_length 510 \
+# --max_target_length 128 \
+# --metric_for_best_model rougeLsum \
+# --relative_eval_steps 5 \
+# --es_patience 3 \
+# --load_best_model_at_end True \
+# --project_name optimization \
+# --save_total_limit 2 \
+# --is_part true \
+# --use_model distilbart \
+# --overwrite_output_dir \
+# --wandb_unique_tag distilbart
 
 # python predict.py \
+# --model_name_or_path checkpoint/baseV1.0_Kobart \
+# --num_beams 3
 # --model_name_or_path /opt/ml/final_project/model/checkpoint/kobigbirdbart \
 # --tokenizer_name monologg/kobigbird-bert-base \
 # --num_beams 3 \

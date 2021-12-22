@@ -32,7 +32,9 @@ from utils.data_collator import DataCollatorForSeq2SeqWithDocType
 from utils.processor import preprocess_function
 from utils.rouge import compute_metrics
 from optimization.knowledge_distillation import DistillationTrainer, TinyTrainer
-
+from transformers.models.distilbert.configuration_distilbert import DistilBertConfig
+from transformers import DistilBertTokenizerFast
+from models.modeling_distilbert_bart import DistilBertForConditionalGeneration
 from models.modeling_longformerbart import LongformerBartConfig, LongformerBartWithDoctypeForConditionalGeneration
 from models.modeling_kobigbird_bart import EncoderDecoderModel
 
@@ -136,11 +138,28 @@ def main():
         else :
             config.num_training_steps = training_args.num_training_steps
 
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
-        cache_dir=model_args.cache_dir,
-        use_fast=model_args.use_fast_tokenizer
-    )
+        
+
+    if model_args.use_model=='distilbart':
+        config = DistilBertConfig.from_pretrained("monologg/distilkobert")
+        config.type_vocab_size=1
+        config.layer_norm_eps= 1e-05
+        config.hidden_dropout_prob= 0.1
+        config.attention_probs_dropout_prob= 0.1
+        config.intermediate_size= 3072
+        config.hidden_act="gelu"
+        config.decoder_start_token_id = 2 # cls_token_id
+        config.is_encoder_decoder = True
+        config.use_cache = True
+        tokenizer = DistilBertTokenizerFast.from_pretrained("monologg/distilkobert")
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
+            cache_dir=model_args.cache_dir,
+            use_fast=model_args.use_fast_tokenizer
+        )
+
+    
     
     def model_init():
         if model_args.use_model == "longbart":
@@ -151,6 +170,8 @@ def main():
             return model
         elif model_args.use_model == "bigbart":
             return EncoderDecoderModel.from_pretrained(model_args.model_name_or_path, config=config)     
+        elif model_args.use_model == 'distilbart':
+            return DistilBertForConditionalGeneration("monologg/distilkobert", config)
         else :
             return AutoModelForSeq2SeqLM.from_pretrained(
                 model_args.model_name_or_path,
