@@ -43,8 +43,7 @@ def main(args):
 
     st.title("Welcome in text generation website")
     st.info("좌측에 본문 내용을 넣어주세요!\n")
-    
-    data_args.max_source_length = 2048
+
     doc_type = st.sidebar.selectbox('문서 타입을 선택해주세요!', ['해당없음', '기사', '논문', '잡지'])
         
     input_text = st.sidebar.text_area('문서 내용을 입력해주세요!', height=500)
@@ -70,26 +69,16 @@ def main(args):
             title = postpcs.post_process(title)
             st.write(f'Titles: {title}')
 
-            retrieve_result = es.search(index='summarization_unique', body={'size':5, 'query':{'match':{'text':input_text}}})
-            press_button_1 = st.checkbox(f"유사제목 1: {retrieve_result['hits']['hits'][0]['_source']['title']}")
-            if press_button_1:
-                st.write(f"본문내용: {retrieve_result['hits']['hits'][0]['_source']['text']}")
-            press_button_2 = st.checkbox(f"유사제목 2: {retrieve_result['hits']['hits'][1]['_source']['title']}")
-            if press_button_2:
-                st.write(f"본문내용: {retrieve_result['hits']['hits'][1]['_source']['text']}")
-            press_button_3 = st.checkbox(f"유사제목 3: {retrieve_result['hits']['hits'][2]['_source']['title']}")
-            if press_button_3:
-                st.write(f"본문내용: {retrieve_result['hits']['hits'][2]['_source']['text']}")
-            
-            # for i in range(3):
-            #     ret_title = retrieve_result['hits']['hits'][i]['_source']['title']
-            #     ret_title = ret_title.replace('`','\'')
-            #     st.write(f"유사제목 {i+1}: {ret_title}")
-
-            #     button = st.button(f"{i+1} 유사제목 본문보기!")
-            #     if button :
-            #         ret_text = retrieve_result['hits']['hits'][i]['_source']['text']
-            #         st.write(f"본문내용 {i+1}: {ret_text}")
+        retrieve_result = es.search(index='summarization_unique', body={'size':5, 'query':{'match':{'text':input_text}}})
+        press_button_1 = st.checkbox(f"유사제목 1: {retrieve_result['hits']['hits'][0]['_source']['title']}")
+        if press_button_1:
+            st.write(f"본문내용: {retrieve_result['hits']['hits'][0]['_source']['text']}")
+        press_button_2 = st.checkbox(f"유사제목 2: {retrieve_result['hits']['hits'][1]['_source']['title']}")
+        if press_button_2:
+            st.write(f"본문내용: {retrieve_result['hits']['hits'][1]['_source']['text']}")
+        press_button_3 = st.checkbox(f"유사제목 3: {retrieve_result['hits']['hits'][2]['_source']['title']}")
+        if press_button_3:
+            st.write(f"본문내용: {retrieve_result['hits']['hits'][2]['_source']['text']}")
                     
 
     if st.button('Visualization!'):

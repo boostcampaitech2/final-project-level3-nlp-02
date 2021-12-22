@@ -51,7 +51,7 @@ def get_prediction(
             input_ids['input_ids'] = input_ids['input_ids'].unsqueeze(0)
 
             generated_tokens = model.generate(
-                **input_ids, num_beams=num_beam, **gen_args.__dict__)
+                **input_ids, num_beams=num_beam)#, **gen_args.__dict__)
             return generated_tokens
 
 def preprocess_function_for_prediction(text:str,
