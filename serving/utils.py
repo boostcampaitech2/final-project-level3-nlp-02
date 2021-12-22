@@ -71,6 +71,6 @@ def model_forward(model, tokenizer, text, title) :
 
 def position(node_num):
     rad = math.radians(360/node_num)
-    x_pos = [math.cos(rad*node)*1000+500 for node in range(node_num)]
-    y_pos = [math.sin(rad*node)*1000+500 for node in range(node_num)]
+    x_pos = [math.cos(rad*node)*700+300 for node in range(node_num)]
+    y_pos = [math.sin(rad*node)*700+300 for node in range(node_num)]
     return x_pos, y_pos

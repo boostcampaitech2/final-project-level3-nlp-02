@@ -135,26 +135,3 @@ def add_padding(sample_tokens:List[int],
         if padding:
             sample_tokens = sample_tokens + [padding_num]*(max_length-sample_tokens_len-2)
     return sample_tokens
-
-def get_doc_type_ids(sample_tokens:List[int],
-                     doc_type_id:int) -> List:
-    sample_tokens = np.array(sample_tokens)
-    doc_type_id_list = list(np.where(sample_tokens == 1, doc_type_id, 0))
-    return doc_type_id_list
-    
-def add_padding(sample_tokens:List[int],
-                padding:bool,
-                padding_num:int,
-                max_length:Optional[int],
-                bos_token_id:int,
-                eos_token_id:int) -> List:
-    sample_tokens_len = len(sample_tokens)
-    if len(sample_tokens) > max_length - 2:
-        if bos_token_id == 0: #bart tokenizer만 진행
-            sample_tokens = [bos_token_id] + sample_tokens[:max_length-2] + [eos_token_id]
-    else:
-        if bos_token_id == 0: #bart tokenizer만 진행
-            sample_tokens = [bos_token_id] + sample_tokens + [eos_token_id] # + [padding_num]*(max_length-sample_tokens_len-2)
-        if padding:
-            sample_tokens = sample_tokens + [padding_num]*(max_length-sample_tokens_len-2)
-    return sample_tokens
