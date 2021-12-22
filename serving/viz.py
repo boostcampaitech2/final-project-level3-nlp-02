@@ -19,7 +19,7 @@ def highlighter(
     word = '<span style="background-color:' +color+ '">' +word+ '</span>'
     return word
 
-def text_highlight(st_cross_attn, encoder_tokens) :
+def text_highlight(st_cross_attn, encoder_tokens, model_type) :
     layer_mat = st_cross_attn.detach()
     last_h_layer_mat = torch.mean(layer_mat, 1)[-1] ## mean by head side, last layer
     enc_mat = torch.mean(last_h_layer_mat, 0) ## mean by decoder id side
@@ -28,9 +28,10 @@ def text_highlight(st_cross_attn, encoder_tokens) :
     enc_mat /= enc_mat.max()
     
     colors = [rgb_to_hex(255, 255, 255*(1-attn_s)) for attn_s in enc_mat.numpy()]
+    if model_type == 'bigbart' :
+        encoder_tokens = ['▁'+word if '##' not in word else word.replace('##','') for word in encoder_tokens ]
     higlighted_text = ''.join([highlighter(colors[i], word) for i, word in enumerate(encoder_tokens)])
     higlighted_text = higlighted_text.replace('▁',' ')
-
     return higlighted_text
 
 def attention_heatmap(

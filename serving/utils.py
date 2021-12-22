@@ -8,7 +8,7 @@ def split_tensor_by_words(
     ) -> List[int] :
     i = 0
     split_words_indices = []
-    if model_type != 'kobigbirdbart' :    
+    if model_type != 'bigbart' :    
         for token in text_tokens :
             if '▁' in token:
                 split_words_indices.append(i)
@@ -17,12 +17,15 @@ def split_tensor_by_words(
                 i += 1
         split_words_indices.append(i)
     else :
+        cnt = 0
         for token in text_tokens :
+            cnt += 1
             if '##' in token :
                 i += 1
             else :
                 split_words_indices.append(i)
                 i = 1
+        split_words_indices.append(i)
     split_words_indices = split_words_indices[1:]
     return split_words_indices
 
@@ -30,7 +33,7 @@ def token_to_words(
         text_tokens: List[str],
         model_type: str
     ) -> List[str] :
-    if model_type != 'kobigbirdbart' :    
+    if model_type != 'bigbart' :   
         join_text = ''.join(text_tokens).replace('▁', ' ')    
         space_text = join_text.split(' ')[1:]
     else :
@@ -58,11 +61,11 @@ def format_attention(
     return torch.stack(squeezed)
 
 def model_forward(model, tokenizer, text, title) :
-    enc_input_ids = tokenizer(text, return_tensors="pt", add_special_tokens=True).input_ids
-    dec_input_ids = tokenizer(title, return_tensors="pt", add_special_tokens=True).input_ids
+    enc_input_ids = tokenizer(text, return_tensors="pt", add_special_tokens=False).input_ids
+    dec_input_ids = tokenizer(title, return_tensors="pt", add_special_tokens=False).input_ids
 
     outputs = model(input_ids=enc_input_ids, decoder_input_ids=dec_input_ids)
-
+    
     st_cross_attn = format_attention(outputs.cross_attentions)
     return st_cross_attn, enc_input_ids, dec_input_ids
 
