@@ -15,7 +15,7 @@ def load(model_name) :
     
     if "longformerbart" in model_name:
         model = LongformerBartWithDoctypeForConditionalGeneration.from_pretrained(model_name)
-    elif "kobigbirdbart" in model_name:
+    elif "bigbart" in model_name:
         tokenizer = AutoTokenizer.from_pretrained('monologg/kobigbird-bert-base')
         model = EncoderDecoderModel.from_pretrained(model_name, output_attentions=True)
         # model.encoder.encoder.layer = model.encoder.encoder.layer[:model.config.encoder.encoder_layers]

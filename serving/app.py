@@ -75,7 +75,7 @@ if __name__ == "__main__" :
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='../model/checkpoint/baseV1.0_Kobart_ep3_0.7') #baseV1.0_Kobart
-    parser.add_argument('--use_model', type=str, default='kobart', help='kobigbirdbart or etc')
+    parser.add_argument('--use_model', type=str, default='bigbart', help='bigbart or etc')
     args = parser.parse_args()
 
     main(args)
