@@ -145,8 +145,7 @@
 # --wandb_unique_tag distilbart
 
 python predict.py \
---model_name_or_path metamong1/bigbird-tapt-ep3 \
+--model_name_or_path checkpoint/kobigbirdbart_base_ep3_bs8_pre_noam \
 --num_beams 3 \
 --use_model bigbart \
---use_doc_type_ids True \
 --use_preprocessing

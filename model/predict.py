@@ -44,7 +44,7 @@ def main() :
         use_fast=model_args.use_fast_tokenizer
     )
 
-    if model_args.use_model == "bigbart" :
+    if "bigbart" in model_args.use_model :
         model = EncoderDecoderModel.from_pretrained(model_args.model_name_or_path)
     else :
         model = AutoModelForSeq2SeqLM.from_pretrained(
@@ -54,9 +54,9 @@ def main() :
         )
         model.config.output_attentions = True
     
-    ### test 용 code ###
-    load_dotenv(dotenv_path=data_args.use_auth_token_path)
-    USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")    
+    # ### test 용 code ###
+    # load_dotenv(dotenv_path=data_args.use_auth_token_path)
+    # USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")    
     
     # dataset_name = "metamong1/summarization"
     # datasets = load_dataset(dataset_name + "_part" if data_args.is_part else dataset_name, use_auth_token=USE_AUTH_TOKEN)
@@ -72,8 +72,10 @@ def main() :
     if data_args.use_preprocessing:
         data_preprocessor = Preprocessor()
         text = data_preprocessor.for_prediction(text)
-    breakpoint()
 
+    if  model_args.use_model == 'bigbart_tapt' :
+        data_args.use_doc_type_ids = True
+    
     processed_text = preprocess_function_for_prediction(text, "논문", tokenizer, data_args)
     input_ids = {k: torch.tensor(v) for k,v in processed_text.items()}
     input_ids['input_ids'] = input_ids['input_ids'].unsqueeze(0)
