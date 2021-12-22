@@ -37,8 +37,8 @@ class DataCollatorForSeq2SeqWithDocType(DataCollatorForSeq2Seq):
             max_doc_type_length = max(len(l) for l in doc_type_ids)
             padding_side = self.tokenizer.padding_side
             for feature in features:
-                if  (max_doc_type_length % self.pad_to_multiple_of != 0) :
-                    max_doc_type_length = ((max_doc_type_length // self.pad_to_multiple_of) + 1) * self.pad_to_multiple_of
+                # if  (max_doc_type_length % self.pad_to_multiple_of != 0) :
+                #     max_doc_type_length = ((max_doc_type_length // self.pad_to_multiple_of) + 1) * self.pad_to_multiple_of
 
                 remainder = [0] * (max_doc_type_length - len(feature["doc_type_ids"]))
                 if isinstance(feature["doc_type_ids"], list):

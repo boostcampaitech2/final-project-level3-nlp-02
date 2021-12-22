@@ -134,6 +134,9 @@ def main():
 
     if training_args.use_teacher_forcing:
         if model_args.use_model == "bigbart":
+            if data_args.relative_eval_steps is None:
+                iter_by_epoch = math.ceil(len(train_dataset)/(training_args.per_device_train_batch_size*training_args.gradient_accumulation_steps))
+                training_args.num_training_steps = iter_by_epoch * training_args.num_train_epochs
             config.decoder.num_training_steps = training_args.num_training_steps
         else :
             config.num_training_steps = training_args.num_training_steps
