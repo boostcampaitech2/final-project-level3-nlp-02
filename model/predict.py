@@ -54,21 +54,21 @@ def main() :
         )
         model.config.output_attentions = True
     
-    ### test 용 code ###
-    load_dotenv(dotenv_path=data_args.use_auth_token_path)
-    USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")    
+    # ### test 용 code ###
+    # load_dotenv(dotenv_path=data_args.use_auth_token_path)
+    # USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")    
     
-    dataset_name = "metamong1/summarization"
-    datasets = load_dataset(dataset_name + "_part" if data_args.is_part else dataset_name, use_auth_token=USE_AUTH_TOKEN)
-    data_preprocessor = Preprocessor()
-    datasets = datasets.map(data_preprocessor.for_test)
-    valid_dataset = datasets['validation']
+    # dataset_name = "metamong1/summarization"
+    # datasets = load_dataset(dataset_name + "_part" if data_args.is_part else dataset_name, use_auth_token=USE_AUTH_TOKEN)
+    # data_preprocessor = Preprocessor()
+    # datasets = datasets.map(data_preprocessor.for_test)
+    # valid_dataset = datasets['validation']
 
-    idx = 1600 ## 바꾸면서 test 해보세요!
-    text = valid_dataset[idx]['text']
-    title = valid_dataset[idx]['title']
+    # idx = 1600 ## 바꾸면서 test 해보세요!
+    # text = valid_dataset[idx]['text']
+    # title = valid_dataset[idx]['title']
     #####################
-    # text = input("요약할 문장을 넣어주세요:")
+    text = input("요약할 문장을 넣어주세요:")
 
     input_ids = tokenizer(text, add_special_tokens=True)
     
@@ -86,7 +86,7 @@ def main() :
             torch.tensor([input_ids]), num_beams=num_beams, **generation_args.__dict__)
 
         print('** text: ', text)
-        print('** title: ', title)
+        # print('** title: ', title)
         if len(summary_ids.shape) == 1  or summary_ids.shape[0] == 1:
             ## 출력 1개
             title = tokenizer.decode(summary_ids.squeeze().tolist(), skip_special_tokens=True)
