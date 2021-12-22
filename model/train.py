@@ -198,9 +198,15 @@ def main():
         desc="Running tokenizer on validation dataset",
     )
     label_pad_token_id = -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
-    pad_to_multiple_of = model_args.attention_window_size if model_args.use_model=="longbart" else (
-        8 if training_args.fp16 else None
-    )
+    if model_args.use_model=="longbart":
+        pad_to_multiple_of = model_args.attention_window_size
+    elif data_args.use_preprocessing:
+        pad_to_multiple_of = 1
+    elif training_args.fp16:
+        pad_to_multiple_of = 8
+    else:
+        pad_to_multiple_of = None
+        
     data_collator = DataCollatorForSeq2SeqWithDocType(
         tokenizer,
         label_pad_token_id=label_pad_token_id,
