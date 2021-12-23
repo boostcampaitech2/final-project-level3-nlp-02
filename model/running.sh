@@ -181,11 +181,53 @@
 
 
 # Knowledge Distillation
+# python train.py \
+# --model_name_or_path tmp/encoder_decoder_pruned_last_3 \
+# --do_train \
+# --use_model bigbart \
+# --output_dir checkpoint/bigbart_tapt_ep3_bs16_pre_noam_tiny \
+# --overwrite_output_dir \
+# --num_train_epochs 3 \
+# --learning_rate 0.08767941605644963 \
+# --max_source_length 4096 \
+# --max_target_length 128 \
+# --overwrite_output_dir \
+# --metric_for_best_model rougeLsum \
+# --es_patience 3 \
+# --load_best_model_at_end \
+# --project_name optimization \
+# --per_device_train_batch_size 2 \
+# --gradient_accumulation_steps 8 \
+# --per_device_eval_batch_size 32 \
+# --use_preprocessing \
+# --is_noam \
+# --evaluation_strategy epoch \
+# --save_strategy epoch \
+# --distillation_type tiny \
+# --is_part \
+# --warmup_steps 1000 \
+# --teacher_check_point metamong1/bigbart_tapt_ep3_bs16_pre_noam \
+# --wandb_unique_tag bigbart_tapt_ep3_bs16_pre_noam_tiny
+
+# python test.py \
+# --model_name_or_path metamong1/bigbart_tapt_ep3_bs16_pre_noam \
+# --output_dir result \
+# --overwrite_output_dir \
+# --num_beams 3 \
+# --use_model bigbart_tapt \
+# --use_doc_type_ids \
+# --use_preprocessing \
+# --per_device_eval_batch_size 64 \
+# --wandb_unique_tag tapt_ep3_bs16_pre_noam \
+# --max_source_length 4096 \
+# --max_target_length 128 \
+# --no_cuda
+
 python train.py \
---model_name_or_path encoder_decoder_pruned_last_3 \
+--model_name_or_path tmp/encoder_decoder_pruned_last_3 \
 --do_train \
 --use_model bigbart \
---output_dir checkpoint/bigbart_tapt_ep3_bs16_pre_noam_distil \
+--output_dir checkpoint/bigbart_tapt_ep3_bs16_pre_noam_student \
 --overwrite_output_dir \
 --num_train_epochs 3 \
 --learning_rate 0.08767941605644963 \
@@ -203,23 +245,6 @@ python train.py \
 --is_noam \
 --evaluation_strategy epoch \
 --save_strategy epoch \
---distillation_type distil \
---is_part true \
+--is_part \
 --warmup_steps 1000 \
---teacher_check_point metamong1/bigbart_tapt_ep3_bs16_pre_noam \
---wandb_unique_tag bigbart_tapt_ep3_bs16_pre_noam_distil
-python test.py \
---model_name_or_path metamong1/bigbart_tapt_ep3_bs16_pre_noam \
---output_dir result \
---overwrite_output_dir \
---num_beams 3 \
---use_model bigbart_tapt \
---use_doc_type_ids \
---use_preprocessing \
---per_device_eval_batch_size 64 \
---wandb_unique_tag tapt_ep3_bs16_pre_noam \
---max_source_length 4096 \
---max_target_length 128 \
---no_cuda
-
-# 
+--wandb_unique_tag bigbart_tapt_ep3_bs16_pre_noam_student
