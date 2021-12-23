@@ -225,8 +225,11 @@ def main():
     
     if training_args.distillation_type == 'distil':
         print('DistillationTrainer is used!!!')
-        teacher_config = AutoConfig.from_pretrained(training_args.teacher_check_point)
-        teacher_model=AutoModelForSeq2SeqLM.from_pretrained(training_args.teacher_check_point, config=teacher_config).to(device)
+        if model_args.use_model == "bigbart":
+            teacher_model = EncoderDecoderModel.from_pretrained(training_args.teacher_check_point, config=config).to(device)
+        else:
+            teacher_config = AutoConfig.from_pretrained(training_args.teacher_check_point)
+            teacher_model=AutoModelForSeq2SeqLM.from_pretrained(training_args.teacher_check_point, config=teacher_config).to(device)
         trainer = DistillationTrainer(
             args=training_args,
             teacher_model = teacher_model,
@@ -240,8 +243,11 @@ def main():
         )
     elif training_args.distillation_type == 'tiny':
         print('TinyTrainer is used!!!')
-        teacher_config = AutoConfig.from_pretrained(training_args.teacher_check_point)
-        teacher_model=AutoModelForSeq2SeqLM.from_pretrained(training_args.teacher_check_point, config=teacher_config).to(device)
+        if model_args.use_model == "bigbart":
+            teacher_model = EncoderDecoderModel.from_pretrained(training_args.teacher_check_point, config=config).to(device)
+        else:
+            teacher_config = AutoConfig.from_pretrained(training_args.teacher_check_point)
+            teacher_model=AutoModelForSeq2SeqLM.from_pretrained(training_args.teacher_check_point, config=teacher_config).to(device)
         trainer = TinyTrainer(
             args=training_args,
             teacher_model = teacher_model,

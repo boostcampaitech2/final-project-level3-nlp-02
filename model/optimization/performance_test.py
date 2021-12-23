@@ -9,7 +9,7 @@ import torch
 import os
 import argparse
 
-from performanceBenchmark import PerformanceBenchmark
+from .performanceBenchmark import PerformanceBenchmark
 
 
 load_dotenv(verbose=True)
