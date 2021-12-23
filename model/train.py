@@ -35,7 +35,7 @@ from optimization.knowledge_distillation import DistillationTrainer, TinyTrainer
 from transformers.models.distilbert.configuration_distilbert import DistilBertConfig
 from transformers import DistilBertTokenizerFast
 from models.modeling_distilbert_bart import DistilBertForConditionalGeneration
-from models.modeling_longformerbart import LongformerBartConfig, LongformerBartWithDoctypeForConditionalGeneration
+from models.modeling_longformer_bart import LongformerBartConfig, LongformerBartWithDoctypeForConditionalGeneration
 from models.modeling_kobigbird_bart import EncoderDecoderModel
 
 def seed_everything(seed):
@@ -139,9 +139,7 @@ def main():
                 training_args.num_training_steps = iter_by_epoch * training_args.num_train_epochs
             config.decoder.num_training_steps = training_args.num_training_steps
         else :
-            config.num_training_steps = training_args.num_training_steps
-
-        
+            config.num_training_steps = training_args.num_training_steps        
 
     if model_args.use_model=='distilbart':
         config = DistilBertConfig.from_pretrained("monologg/distilkobert")
@@ -162,8 +160,6 @@ def main():
             use_fast=model_args.use_fast_tokenizer
         )
 
-    
-    
     def model_init():
         if model_args.use_model == "longbart":
             model = LongformerBartWithDoctypeForConditionalGeneration.from_pretrained(model_args.model_name_or_path)
@@ -201,9 +197,15 @@ def main():
         desc="Running tokenizer on validation dataset",
     )
     label_pad_token_id = -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
-    pad_to_multiple_of = model_args.attention_window_size if model_args.use_model=="longbart" else (
-        8 if training_args.fp16 else None
-    )
+    if model_args.use_model=="longbart":
+        pad_to_multiple_of = model_args.attention_window_size
+    elif data_args.use_preprocessing:
+        pad_to_multiple_of = 1
+    elif training_args.fp16:
+        pad_to_multiple_of = 8
+    else:
+        pad_to_multiple_of = None
+        
     data_collator = DataCollatorForSeq2SeqWithDocType(
         tokenizer,
         label_pad_token_id=label_pad_token_id,

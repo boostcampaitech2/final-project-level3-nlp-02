@@ -70,6 +70,48 @@ def preprocess_function(examples:datasets,
 
     return model_inputs 
 
+def preprocess_function_for_prediction(text:str,
+            doc_type:str,
+            tokenizer:PreTrainedTokenizer,
+            data_args) -> datasets:
+                        
+    pad_token_id = tokenizer.pad_token_id
+    bos_token_id = tokenizer.bos_token_id
+    eos_token_id = tokenizer.eos_token_id
+    max_source_length = data_args.max_source_length
+    padding = "max_length" if data_args.pad_to_max_length else False
+    
+    # Setup the tokenizer for inputs
+    model_input = tokenizer(text, max_length=max_source_length, padding=padding, truncation=True)
+
+    # If we are padding here, replace all tokenizer.pad_token_id in the labels by -100 when we want to ignore
+    # padding in the loss.
+    inputs_padding_bool = (padding == "max_length")
+    doc_type_ids = []
+    model_input["attention_mask"] = add_padding(sample_tokens=model_input["attention_mask"],
+                                                    padding=inputs_padding_bool,
+                                                    padding_num=0,
+                                                    max_length=max_source_length,
+                                                    bos_token_id=1,
+                                                    eos_token_id=1) 
+    model_input["input_ids"] = add_padding(sample_tokens=model_input["input_ids"],
+                                                    padding=inputs_padding_bool,
+                                                    padding_num= pad_token_id,
+                                                    max_length=max_source_length,
+                                                    bos_token_id = bos_token_id,
+                                                    eos_token_id = eos_token_id)
+    
+    if data_args.use_doc_type_ids:
+        doc_type_id_list = get_doc_type_ids(model_input["attention_mask"], doc_type_dict[doc_type])
+        doc_type_ids.append(doc_type_id_list)
+    
+    if data_args.use_doc_type_ids:
+        model_input["doc_type_ids"] = doc_type_ids
+
+    del model_input["attention_mask"]
+    del model_input["token_type_ids"]
+
+    return model_input
 
 def get_doc_type_ids(sample_tokens:List[int],
                      doc_type_id:int) -> List:

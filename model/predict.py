@@ -18,7 +18,7 @@ from args import (
     GenerationArguments
 )
 
-from utils.processor import preprocess_function
+from utils.processor import preprocess_function_for_prediction
 from utils.data_preprocessor import Preprocessor
 from models.modeling_kobigbird_bart import EncoderDecoderModel
 
@@ -44,7 +44,7 @@ def main() :
         use_fast=model_args.use_fast_tokenizer
     )
 
-    if model_args.use_model == "bigbart" :
+    if "bigbart" in model_args.use_model :
         model = EncoderDecoderModel.from_pretrained(model_args.model_name_or_path)
     else :
         model = AutoModelForSeq2SeqLM.from_pretrained(
@@ -54,39 +54,42 @@ def main() :
         )
         model.config.output_attentions = True
     
-    ### test 용 code ###
-    load_dotenv(dotenv_path=data_args.use_auth_token_path)
-    USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")    
+    # ### test 용 code ###
+    # load_dotenv(dotenv_path=data_args.use_auth_token_path)
+    # USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")    
     
-    dataset_name = "metamong1/summarization"
-    datasets = load_dataset(dataset_name + "_part" if data_args.is_part else dataset_name, use_auth_token=USE_AUTH_TOKEN)
-    data_preprocessor = Preprocessor()
-    datasets = datasets.map(data_preprocessor.for_test)
-    valid_dataset = datasets['validation']
+    # dataset_name = "metamong1/summarization"
+    # datasets = load_dataset(dataset_name + "_part" if data_args.is_part else dataset_name, use_auth_token=USE_AUTH_TOKEN)
+    # datasets = datasets.map(data_preprocessor.for_test)
+    # valid_dataset = datasets['validation']
 
-    idx = 1600 ## 바꾸면서 test 해보세요!
-    text = valid_dataset[idx]['text']
-    title = valid_dataset[idx]['title']
+    # idx = 1600 ## 바꾸면서 test 해보세요!
+    # text = valid_dataset[idx]['text']
+    # title = valid_dataset[idx]['title']
     #####################
-    # text = input("요약할 문장을 넣어주세요:")
+    text = input("요약할 문장을 넣어주세요:")
 
-    input_ids = tokenizer(text, add_special_tokens=True)
+    if data_args.use_preprocessing:
+        data_preprocessor = Preprocessor()
+        text = data_preprocessor.for_prediction(text)
+
+    if  model_args.use_model == 'bigbart_tapt' :
+        data_args.use_doc_type_ids = True
     
-    if model_args.use_model != "bigbart" :
-        input_ids = [tokenizer.bos_token_id] + input_ids['input_ids'][:-2] + [tokenizer.eos_token_id]
-    else :
-        input_ids = input_ids['input_ids']
-    
+    processed_text = preprocess_function_for_prediction(text, "논문", tokenizer, data_args)
+    input_ids = {k: torch.tensor(v) for k,v in processed_text.items()}
+    input_ids['input_ids'] = input_ids['input_ids'].unsqueeze(0)
+
     num_beams = data_args.num_beams
     if num_beams is not None :
         generation_args.num_return_sequences = num_beams
 
     with timer('** Generate title **') :
         summary_ids = model.generate(
-            torch.tensor([input_ids]), num_beams=num_beams, **generation_args.__dict__)
+            **input_ids, num_beams=num_beams, **generation_args.__dict__)
 
         print('** text: ', text)
-        print('** title: ', title)
+        # print('** title: ', title)
         if len(summary_ids.shape) == 1  or summary_ids.shape[0] == 1:
             ## 출력 1개
             title = tokenizer.decode(summary_ids.squeeze().tolist(), skip_special_tokens=True)

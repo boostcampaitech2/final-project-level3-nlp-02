@@ -37,6 +37,12 @@ class Preprocessor :
         data['text'] = text 
         return data
 
+    def for_prediction(self, text) :
+        text = self.bracket_comp.sub(' ', text)
+        text = self.doc_preprocess(text)
+        text = self.strip(text)
+        return text
+    
     def strip(self, txt) :
         txt = re.sub('\s+' , ' ', txt) 
         return txt.strip()
