@@ -1,6 +1,8 @@
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.optim.lr_scheduler import LambdaLR
 from transformers import Seq2SeqTrainingArguments
 from transformers import Seq2SeqTrainer
 
@@ -46,14 +48,32 @@ class TinyTrainer(Seq2SeqTrainer):
         super().__init__(*args, **kwargs)
         self.teacher_model = teacher_model
     
+    def create_optimizer_and_scheduler(self, num_training_steps: int):
+        self.create_optimizer()
+        self.create_scheduler(num_training_steps=num_training_steps, optimizer=self.optimizer)
+    
+    def create_scheduler(self, num_training_steps: int, optimizer: torch.optim.Optimizer = None):
+        if not self.args.is_noam:
+            super().create_scheduler(num_training_steps, optimizer)
+        else:
+            if self.lr_scheduler is None:
+                self.lr_scheduler = self.get_noam_schedule_with_warmup(
+                    optimizer=self.optimizer if optimizer is None else optimizer,
+                    num_warmup_steps=self.args.get_warmup_steps(num_training_steps),
+                )
+            return self.lr_scheduler
+
+    def get_noam_schedule_with_warmup(self, optimizer, num_warmup_steps, last_epoch=-1):
+        def lr_lambda(current_step: int):
+            return 1 / math.sqrt(self.args.model_config.d_model) * min(1/math.sqrt(current_step+1), (current_step+1) /(num_warmup_steps**(1.5)))
+        return LambdaLR(optimizer, lr_lambda, last_epoch)
+    
     def compute_loss(self, model, inputs, return_outputs=False):
         # Student model output
         outputs_student = model(**inputs, output_hidden_states=True, output_attentions=True)
-
         # Teacher model output
         with torch.no_grad():
             outputs_teacher = self.teacher_model(**inputs, output_hidden_states=True, output_attentions=True)
-
         # Number of layers for each student and teacher models' encoder and decoder layers
         num_encoder_layers_student = len(outputs_student.encoder_attentions)
         num_encoder_layers_teacher = len(outputs_teacher.encoder_attentions)
