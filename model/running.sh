@@ -208,3 +208,18 @@ python train.py \
 --warmup_steps 1000 \
 --teacher_check_point metamong1/bigbart_tapt_ep3_bs16_pre_noam \
 --wandb_unique_tag bigbart_tapt_ep3_bs16_pre_noam_distil
+python test.py \
+--model_name_or_path metamong1/bigbart_tapt_ep3_bs16_pre_noam \
+--output_dir result \
+--overwrite_output_dir \
+--num_beams 3 \
+--use_model bigbart_tapt \
+--use_doc_type_ids \
+--use_preprocessing \
+--per_device_eval_batch_size 64 \
+--wandb_unique_tag tapt_ep3_bs16_pre_noam \
+--max_source_length 4096 \
+--max_target_length 128 \
+--no_cuda
+
+# 

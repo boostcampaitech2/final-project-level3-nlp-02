@@ -80,6 +80,6 @@ class ModelArguments :
     )
     use_model: str = field(
         default='auto',
-        metadata={"help": "model type(pretrained model from huggingface, customized bigbart, customized longbart), [auto, bigbart, longbart]"},
+        metadata={"help": "model type(pretrained model from huggingface, customized bigbart, customized longbart), [auto, bigbart, longbart, bigbart_tapt]"},
     )
     
