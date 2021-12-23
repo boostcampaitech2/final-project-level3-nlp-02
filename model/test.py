@@ -64,7 +64,6 @@ def main():
     load_dotenv(dotenv_path=data_args.use_auth_token_path)
     USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")    
     test_dataset = load_dataset('metamong1/summarization', split="test", use_auth_token=USE_AUTH_TOKEN)
-    test_dataset = test_dataset.select(range(100))
 
     if data_args.use_preprocessing:
         data_preprocessor = Preprocessor()
@@ -136,7 +135,6 @@ def main():
         data_collator=data_collator,
         compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
     )
-
 
     results = {}    
     num_beams = data_args.num_beams if data_args.num_beams is not None else training_args.generation_num_beams
