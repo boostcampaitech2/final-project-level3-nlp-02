@@ -37,7 +37,7 @@ class DataTrainingArguments:
         },
     )
     val_max_target_length: Optional[int] = field(
-        default=None,
+        default=128,
         metadata={
             "help": "The maximum total sequence length for validation target text after tokenization. Sequences longer "
             "than this will be truncated, sequences shorter will be padded. Will default to `max_target_length`."
@@ -131,5 +131,11 @@ class DataTrainingArguments:
          default=False, 
          metadata={ 
             "help": "whether to preprocess(default=False)" 
+        }, 
+    )
+    is_valid: bool = field(
+         default=False, 
+         metadata={ 
+            "help": "is validation datasets" 
         }, 
     )

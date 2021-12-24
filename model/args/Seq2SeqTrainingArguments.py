@@ -113,6 +113,13 @@ class CustomSeq2SeqTrainingArguments(Seq2SeqTrainingArguments):
     use_teacher_forcing: bool = field(
         default=False,
         metadata={
-            "help": "wheter to apply teacher forcing"
+            "help": "whether to apply teacher forcing"
         }
     )
+    is_warmup_half: bool = field(
+        default=False,
+        metadata={
+            "help": "whether to be half warm-up"
+        }
+    )
+

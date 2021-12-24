@@ -823,7 +823,6 @@ class EncoderDecoderModel(PreTrainedModel):
         return_dict=None,
         **kwargs,
     ):
-
         if self.num_training_steps is None:
             teacher_training_ratio = 100
         else:
@@ -859,7 +858,7 @@ class EncoderDecoderModel(PreTrainedModel):
             and self.decoder.config.cross_attention_hidden_size is None
         ):
             encoder_hidden_states = self.enc_to_dec_proj(encoder_hidden_states)
-
+        
         if (labels is not None) and (decoder_input_ids is None and decoder_inputs_embeds is None):
             decoder_input_ids = shift_tokens_right(
                 labels, self.decoder.config.pad_token_id, self.decoder.config.decoder_start_token_id
@@ -945,7 +944,7 @@ class EncoderDecoderModel(PreTrainedModel):
         )
 
     def prepare_decoder_input_ids_from_labels(self, labels: torch.Tensor):
-        return shift_tokens_right(labels, self.config.pad_token_id, self.config.decoder_start_token_id)
+        return shift_tokens_right(labels, self.decoder.config.pad_token_id, self.decoder.config.decoder_start_token_id)
 
     def prepare_inputs_for_generation(
         self,
