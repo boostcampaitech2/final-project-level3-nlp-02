@@ -70,6 +70,7 @@ python train.py \
 --es_patience 3 \
 --load_best_model_at_end \
 --project_name optimization \
+<<<<<<< HEAD
 --per_device_train_batch_size 1 \
 --gradient_accumulation_steps 16 \
 --per_device_eval_batch_size 16 \
@@ -104,3 +105,16 @@ python predict.py \
 --num_beams 3 \
 --use_model bigbart \
 --use_preprocessing
+=======
+--per_device_train_batch_size 2 \
+--gradient_accumulation_steps 8 \
+--per_device_eval_batch_size 32 \
+--is_noam \
+--evaluation_strategy epoch \
+--save_strategy epoch \
+--distillation_type tiny \
+--warmup_steps 1000 \
+--teacher_check_point metamong1/bigbart_tapt_ep3_bs16_pre_noam \
+--wandb_unique_tag bigbart_tapt_ep3_bs16_pre_noam_tiny_full \
+--use_preprocessing
+>>>>>>> c2c4580d73adc096c42a6d6267cea3ac3755fde2

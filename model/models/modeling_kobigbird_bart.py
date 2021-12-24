@@ -884,7 +884,7 @@ class EncoderDecoderModel(PreTrainedModel):
             lm_logits = self.lm_head(decoder_hidden_states) + self.final_logits_bias # (batch_size, seq_size, vocab_size)
             lm_logits_softmax = torch.softmax(lm_logits,dim=-1)
             topk_logits, topk_indices = torch.topk(lm_logits_softmax,k=5,dim=-1)
-            is_topk_indices_used = topk_logits.sum(dim=-1) > 0.7
+            is_topk_indices_used = topk_logits.sum(dim=-1) > 0.5
             
             # method2 : top-5
             topk_token_hidden_state = self.encoder.embeddings.word_embeddings(topk_indices)

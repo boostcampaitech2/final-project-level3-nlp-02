@@ -127,6 +127,8 @@ class DistillationTrainer(Seq2SeqTrainer):
             if "labels" in inputs:
                 labels = inputs['labels']
                 pad_mask = labels.unsqueeze(-1).eq(-100)
+        else:
+            labels = None
 
         # Student model output
         outputs_student = model(**inputs, output_hidden_states=True, output_attentions=True)
