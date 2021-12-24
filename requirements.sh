@@ -29,10 +29,11 @@ pip install bertviz
 pip install jupyter-dash
 pip install plotly
 pip install jupyter-dash
+
 pip install streamlit==1.1.0
+pip install elasticsearch
 
 # ### NLP task
-pip install kss
 pip install tweepy==3.9.0
 pip install konlpy
 

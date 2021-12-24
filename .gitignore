@@ -8,3 +8,4 @@ mecab**
 distilbart**
 *.html
 model/*.sh
+model/tmp/
