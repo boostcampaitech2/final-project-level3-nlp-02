@@ -2,11 +2,11 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Dict,Union, Any
+from typing import Dict, Union, Any
 from torch.optim.lr_scheduler import LambdaLR
-from transformers import Seq2SeqTrainingArguments
 from transformers import Seq2SeqTrainer
 from packaging import version
+
 if version.parse(torch.__version__) >= version.parse("1.6"):
     from torch.cuda.amp import autocast
 
@@ -14,108 +14,10 @@ class DistillationTrainer(Seq2SeqTrainer):
     def __init__(self, *args, teacher_model=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.teacher_model = teacher_model
-    
-    def compute_loss(self, model, inputs, return_outputs=False):
-
-        if self.args.label_smoothing_factor != 0:
-            if "labels" in inputs:
-                labels = inputs['labels']
-                pad_mask = labels.unsqueeze(-1).eq(-100)
-
-        outputs_student = model(**inputs)
-
-        # Extract cross-entropy loss and logtis from student
-        loss_cross_entropy = outputs_student.loss
-        logits_student = outputs_student.logits
-        
-
-        # Extract logits from teacher
-        with torch.no_grad():
-            outputs_teacher = self.teacher_model(**inputs)
-            logits_teacher = outputs_teacher.logits
-        
-        # Soften probabilities and compute distillation loss
-        loss_fct = nn.KLDivLoss(reduction="batchmean")
-        loss_kd = self.args.temperature ** 2 * loss_fct(
-            F.log_softmax(logits_student / self.args.temperature, dim=-1),
-            F.softmax(logits_teacher / self.args.temperature, dim=-1)
-        )
-
-        loss = self.args.alpha * loss_cross_entropy + (1. - self.args.alpha) * loss_kd
-        
-        if labels is not None:
-            loss += self.label_smoothed_nll_loss(outputs_student, labels,
-                                            epsilon=0.1 if self.label_smoother else 0)
-    
-        if self.args.use_rdrop:
-            loss += self.args.reg_alpha * self.compute_kl_loss(outputs_student, pad_mask=pad_mask)
-
-        # Return weighted student loss
-        return (loss, outputs_student) if return_outputs else loss
-    
-    def compute_kl_loss(self, net_output, pad_mask=None, reduce=True):
-        net_prob = self.get_normalized_probs(net_output, log_probs=True)
-        net_prob_tec = self.get_normalized_probs(net_output, log_probs=False)
-
-        p, q = torch.split(net_prob, net_prob.size(0)//2, dim=0)
-        p_tec, q_tec = torch.split(net_prob_tec, net_prob_tec.size(0)//2, dim=0)
-        
-        p_loss = F.kl_div(p, q_tec, reduction='none')
-        q_loss = F.kl_div(q, p_tec, reduction='none')
-        
-        if pad_mask is not None:
-            pad_mask, _ = torch.split(pad_mask, pad_mask.size(0)//2, dim=0)
-            p_loss.masked_fill_(pad_mask, 0.)
-            q_loss.masked_fill_(pad_mask, 0.)
-
-        if reduce:
-            p_loss = p_loss.sum()
-            q_loss = q_loss.sum()
-
-        loss = (p_loss + q_loss) / 2
-        return loss
-
-    def label_smoothed_nll_loss(self, model_output, labels, epsilon):
-        logits = model_output["logits"] if isinstance(model_output, dict) else model_output[0]
-        log_probs = -F.log_softmax(logits, dim=-1)
-        if labels.dim() == log_probs.dim() - 1:
-            labels = labels.unsqueeze(-1)
-
-        padding_mask = labels.eq(-100) # self.label_smoother.ignore_index
-        # In case the ignore_index is -100, the gather will fail, so we replace labels by 0. The padding_mask
-        # will ignore them in any case.
-        labels = torch.clamp(labels, min=0)
-        nll_loss = log_probs.gather(dim=-1, index=labels)
-        # works for fp16 input tensor too, by internally upcasting it to fp32
-        smoothed_loss = log_probs.sum(dim=-1, keepdim=True, dtype=torch.float32)
-
-        nll_loss.masked_fill_(padding_mask, 0.0)
-        smoothed_loss.masked_fill_(padding_mask, 0.0)
-
-        nll_loss = nll_loss.sum()
-        smoothed_loss = smoothed_loss.sum()
-        eps_i = epsilon / log_probs.size(-1)
-        return (1. - epsilon) * nll_loss + eps_i * smoothed_loss
-    
-    def get_normalized_probs(self, net_output, log_probs=True):
-        """
-        Get network output(loss, logits) and normalize logits using softmax
-        Args:
-            net_output tuple(loss, logits): logits before softmax
-            log_probs bool: whether it is log probabilities
-        Return:
-            normalized probs: after softmax
-        """
-        logits = net_output["logits"] if isinstance(net_output, dict) else net_output[0]
-        if log_probs:
-            return F.log_softmax(logits, dim=-1)
-        else:
-            return F.softmax(logits, dim=-1)
-
-class TinyTrainer(Seq2SeqTrainer):
-    def __init__(self, *args, teacher_model=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.teacher_model = teacher_model
+        if self.args.distillation_type == "distil":
+            self.compute_loss = self.distil_compute_loss
+        elif self.args.distillation_type == "tiny":
+            self.compute_loss = self.tiny_compute_loss
     
     def create_optimizer_and_scheduler(self, num_training_steps: int):
         self.create_optimizer()
@@ -132,25 +34,12 @@ class TinyTrainer(Seq2SeqTrainer):
                 )
             return self.lr_scheduler
 
-    def get_noam_schedule_with_warmup(self, optimizer, num_warmup_steps, last_epoch=-1):
+    def get_noam_schedule_with_warmup(self, optimizer: torch.optim.Optimizer, num_warmup_steps: int, last_epoch: int=-1):
         def lr_lambda(current_step: int):
             return 1 / math.sqrt(self.args.model_config.d_model) * min(1/math.sqrt(current_step+1), (current_step+1) /(num_warmup_steps**(1.5)))
         return LambdaLR(optimizer, lr_lambda, last_epoch)
     
     def training_step(self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> torch.Tensor:
-        """[]
-        Perform a training step on a batch of inputs.
-        Subclass and override to inject custom behavior.
-        Args:
-            model (:obj:`nn.Module`):
-                The model to train.
-            inputs (:obj:`Dict[str, Union[torch.Tensor, Any]]`):
-                The inputs and targets of the model.
-                The dictionary will be unpacked before being fed to the model. Most models expect the targets under the
-                argument :obj:`labels`. Check your model's documentation for all accepted arguments.
-        Return:
-            :obj:`torch.Tensor`: The tensor with training loss on this batch.
-        """
         if not self.args.use_rdrop:
             return super().training_step(model, inputs)
             
@@ -161,11 +50,10 @@ class TinyTrainer(Seq2SeqTrainer):
             'input_ids': torch.cat([inputs['input_ids'], inputs['input_ids'].clone()], 0),
             'attention_mask': torch.cat([inputs['attention_mask'], inputs['attention_mask'].clone()], 0),
             'labels': torch.cat([inputs['labels'], inputs['labels'].clone()], 0),
-            # 'decoder_input_ids': torch.cat([inputs['decoder_input_ids'], inputs['decoder_input_ids'].clone()], 0),
         } # 두 번 forward 하기 힘드니까 concate해서 한 번에 feed 하고 잘라주는 형식입니다.
 
         if 'doc_type_ids' in inputs:
-            concat_inputs['doc_type_ids'] = torch.cat([inputs['doc_type_ids'], inputs['doc_type_ids'].clone()], 0)\
+            concat_inputs['doc_type_ids'] = torch.cat([inputs['doc_type_ids'], inputs['doc_type_ids'].clone()], 0)
                 
         if self.use_amp:
             if version.parse(torch.__version__) >= version.parse("1.10"):
@@ -192,7 +80,48 @@ class TinyTrainer(Seq2SeqTrainer):
 
         return loss.detach()
     
-    def compute_loss(self, model, inputs, return_outputs=False):
+    def distil_compute_loss(self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]], return_outputs=False):
+
+        if self.args.label_smoothing_factor != 0:
+            if "labels" in inputs:
+                labels = inputs['labels']
+                pad_mask = labels.unsqueeze(-1).eq(-100)
+
+        outputs_student = model(**inputs)
+
+        # Extract cross-entropy loss and logtis from student
+        loss_cross_entropy = outputs_student.loss
+        logits_student = outputs_student.logits
+        
+        # Extract logits from teacher
+        with torch.no_grad():
+            outputs_teacher = self.teacher_model(**inputs)
+            logits_teacher = outputs_teacher.logits
+        
+        # Soften probabilities and compute distillation loss
+        loss_fct = nn.KLDivLoss(reduction="batchmean")
+        loss_kd = self.args.temperature ** 2 * loss_fct(
+            F.log_softmax(logits_student / self.args.temperature, dim=-1),
+            F.softmax(logits_teacher / self.args.temperature, dim=-1)
+        )
+
+        loss = self.args.alpha * loss_cross_entropy + (1. - self.args.alpha) * loss_kd
+        
+        if labels is not None:
+            loss += self.label_smoothed_nll_loss(outputs_student, labels,
+                                            epsilon=0.1 if self.label_smoother else 0)
+    
+        if self.args.use_rdrop:
+            loss += self.args.reg_alpha * self.compute_kl_loss(outputs_student, pad_mask=pad_mask)
+
+        # Return weighted student loss
+        return (loss, outputs_student) if return_outputs else loss
+    
+    def tiny_compute_loss(self,
+        model: nn.Module,
+        inputs: Dict[str, Union[torch.Tensor, Any]],
+        return_outputs=False
+        ) -> torch.Tensor:
         
         if self.args.label_smoothing_factor != 0:
             if "labels" in inputs:
@@ -295,7 +224,7 @@ class TinyTrainer(Seq2SeqTrainer):
 
         return (loss, outputs_student) if return_outputs else loss
     
-    def compute_kl_loss(self, net_output, pad_mask=None, reduce=True):
+    def compute_kl_loss(self, net_output: Dict[str, Union[torch.Tensor, Any]], pad_mask:torch.Tensor =None, reduce=True) -> torch.Tensor: 
         net_prob = self.get_normalized_probs(net_output, log_probs=True)
         net_prob_tec = self.get_normalized_probs(net_output, log_probs=False)
 
@@ -317,7 +246,7 @@ class TinyTrainer(Seq2SeqTrainer):
         loss = (p_loss + q_loss) / 2
         return loss
 
-    def label_smoothed_nll_loss(self, model_output, labels, epsilon):
+    def label_smoothed_nll_loss(self, model_output: Dict[str, Union[torch.Tensor, Any]], labels:torch.Tensor, epsilon:float) -> torch.Tensor:
         logits = model_output["logits"] if isinstance(model_output, dict) else model_output[0]
         log_probs = -F.log_softmax(logits, dim=-1)
         if labels.dim() == log_probs.dim() - 1:
@@ -339,15 +268,7 @@ class TinyTrainer(Seq2SeqTrainer):
         eps_i = epsilon / log_probs.size(-1)
         return (1. - epsilon) * nll_loss + eps_i * smoothed_loss
     
-    def get_normalized_probs(self, net_output, log_probs=True):
-        """
-        Get network output(loss, logits) and normalize logits using softmax
-        Args:
-            net_output tuple(loss, logits): logits before softmax
-            log_probs bool: whether it is log probabilities
-        Return:
-            normalized probs: after softmax
-        """
+    def get_normalized_probs(self, net_output: Dict[str, Union[torch.Tensor, Any]], log_probs=True) -> torch.Tensor:
         logits = net_output["logits"] if isinstance(net_output, dict) else net_output[0]
         if log_probs:
             return F.log_softmax(logits, dim=-1)

@@ -26,11 +26,10 @@ def performance_test(
     seed=42,
     args=None
 ):
-    # 기본 세팅
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     api_token = os.getenv('USE_AUTH_TOKEN')
     if args:
-        check_point = args.check_point  # 'kobart-summarization-finetuned-paper-sample-size-1000/checkpoint-1000'
+        check_point = args.check_point
         test_dataset = args.test_dataset
         test_dataset_size = args.test_dataset_size
         cpu_flag = args.cpu_flag
@@ -39,21 +38,18 @@ def performance_test(
     if cpu_flag:
         device='cpu'
 
-    # 데이터셋 준비
     dataset = datasets.load_dataset(test_dataset, use_auth_token=api_token)
     test_dataset = dataset['validation'].shuffle(seed=seed).filter(lambda x: len(x['text'])< 500).select(range(test_dataset_size))
     
-    # 토크나이저 준비
     if not tokenizer:
         tokenizer = AutoTokenizer.from_pretrained(check_point)
 
-    # 모델 준비
+    
     if not model:
         model = AutoModelForSeq2SeqLM.from_pretrained(check_point, torch_dtype='auto')
     
     model = model.to(device)
 
-    # 사용할 모델 및 파이프라인 준비
     summerizer = pipeline(
         'summarization', 
         model=model,
@@ -61,10 +57,8 @@ def performance_test(
         device = 0 if torch.cuda.is_available() and not cpu_flag else -1
     )
 
-    # 벤치마크 준비
     performance_benchmark = PerformanceBenchmark(summerizer, test_dataset, tokenizer, 'baseline')
 
-    # 벤치마크 계산
     test_categories = test_categories.split(',')
     if 'rouge' in test_categories:
         performance_benchmark.compute_rouge()

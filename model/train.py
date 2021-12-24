@@ -31,12 +31,15 @@ from utils.data_preprocessor import Preprocessor, Filter
 from utils.data_collator import DataCollatorForSeq2SeqWithDocType
 from utils.processor import preprocess_function
 from utils.rouge import compute_metrics
-from optimization.knowledge_distillation import DistillationTrainer, TinyTrainer
-from transformers.models.distilbert.configuration_distilbert import DistilBertConfig
+
+from optimization.knowledge_distillation import DistillationTrainer
+
 from transformers import DistilBertTokenizerFast
+from transformers.models.distilbert.configuration_distilbert import DistilBertConfig
+
+from models.modeling_kobigbird_bart import EncoderDecoderModel
 from models.modeling_distilbert_bart import DistilBertForConditionalGeneration
 from models.modeling_longformer_bart import LongformerBartConfig, LongformerBartWithDoctypeForConditionalGeneration
-from models.modeling_kobigbird_bart import EncoderDecoderModel
 
 def seed_everything(seed):
     torch.manual_seed(seed)
@@ -227,31 +230,14 @@ def main():
     wandb.config.update(training_args)
     
     comp_met_fn  = partial(compute_metrics, tokenizer=tokenizer, data_args=data_args)
-    
-    if training_args.distillation_type == 'distil':
-        print('DistillationTrainer is used!!!')
+
+    if training_args.distillation_type in ['distil', 'tiny']:
         if model_args.use_model == "bigbart":
             teacher_model = EncoderDecoderModel.from_pretrained(training_args.teacher_check_point).to(device)
         else:
             teacher_model=AutoModelForSeq2SeqLM.from_pretrained(training_args.teacher_check_point).to(device)
+        
         trainer = DistillationTrainer(
-            args=training_args,
-            teacher_model = teacher_model,
-            train_dataset=train_dataset,
-            eval_dataset=valid_dataset,
-            tokenizer=tokenizer,
-            data_collator=data_collator,
-            compute_metrics=comp_met_fn if training_args.predict_with_generate else None,
-            model_init=model_init, ## model 성능 재현
-            callbacks = [EarlyStoppingCallback(early_stopping_patience=training_args.es_patience)] if training_args.es_patience else None
-        )
-    elif training_args.distillation_type == 'tiny':
-        print('TinyTrainer is used!!!')
-        if model_args.use_model == "bigbart":
-            teacher_model = EncoderDecoderModel.from_pretrained(training_args.teacher_check_point).to(device)
-        else:
-            teacher_model=AutoModelForSeq2SeqLM.from_pretrained(training_args.teacher_check_point).to(device)
-        trainer = TinyTrainer(
             args=training_args,
             teacher_model = teacher_model,
             train_dataset=train_dataset,

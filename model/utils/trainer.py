@@ -95,20 +95,12 @@ class Seq2SeqTrainerWithConditionalDocType(Seq2SeqTrainer):
                 )
             return self.lr_scheduler
 
-    def get_noam_schedule_with_warmup(self, optimizer, num_warmup_steps, last_epoch=-1):
+    def get_noam_schedule_with_warmup(self, optimizer: torch.optim.Optimizer, num_warmup_steps: int, last_epoch=-1) -> LambdaLR:
         def lr_lambda(current_step: int):
             return 1 / math.sqrt(self.args.model_config.d_model) * min(1/math.sqrt(current_step+1), (current_step+1) /(num_warmup_steps**(1.5)))
         return LambdaLR(optimizer, lr_lambda, last_epoch)
         
-    def get_normalized_probs(self, net_output, log_probs=True):
-        """
-        Get network output(loss, logits) and normalize logits using softmax
-        Args:
-            net_output tuple(loss, logits): logits before softmax
-            log_probs bool: whether it is log probabilities
-        Return:
-            normalized probs: after softmax
-        """
+    def get_normalized_probs(self, net_output: Dict[str, Union[torch.Tensor, Any]], log_probs=True) -> torch.Tensor:
         logits = net_output["logits"] if isinstance(net_output, dict) else net_output[0]
         if log_probs:
             return F.log_softmax(logits, dim=-1)
@@ -116,19 +108,6 @@ class Seq2SeqTrainerWithConditionalDocType(Seq2SeqTrainer):
             return F.softmax(logits, dim=-1)
 
     def training_step(self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> torch.Tensor:
-        """[]
-        Perform a training step on a batch of inputs.
-        Subclass and override to inject custom behavior.
-        Args:
-            model (:obj:`nn.Module`):
-                The model to train.
-            inputs (:obj:`Dict[str, Union[torch.Tensor, Any]]`):
-                The inputs and targets of the model.
-                The dictionary will be unpacked before being fed to the model. Most models expect the targets under the
-                argument :obj:`labels`. Check your model's documentation for all accepted arguments.
-        Return:
-            :obj:`torch.Tensor`: The tensor with training loss on this batch.
-        """
         if not self.args.use_rdrop:
             return super().training_step(model, inputs)
             
@@ -139,7 +118,6 @@ class Seq2SeqTrainerWithConditionalDocType(Seq2SeqTrainer):
             'input_ids': torch.cat([inputs['input_ids'], inputs['input_ids'].clone()], 0),
             'attention_mask': torch.cat([inputs['attention_mask'], inputs['attention_mask'].clone()], 0),
             'labels': torch.cat([inputs['labels'], inputs['labels'].clone()], 0),
-            # 'decoder_input_ids': torch.cat([inputs['decoder_input_ids'], inputs['decoder_input_ids'].clone()], 0),
         } # 두 번 forward 하기 힘드니까 concate해서 한 번에 feed 하고 잘라주는 형식입니다.
 
         if 'doc_type_ids' in inputs:
@@ -170,8 +148,7 @@ class Seq2SeqTrainerWithConditionalDocType(Seq2SeqTrainer):
 
         return loss.detach()
 
-    # huggingface Trainer compute_loss 함수를 수정하였습니다.
-    def compute_loss(self, model, inputs, return_outputs=False):
+    def compute_loss(self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]], return_outputs=False):
         """
         How the loss is computed by Trainer. By default, all models return the loss in the first element.
         Subclass and override for custom behavior.
@@ -202,8 +179,6 @@ class Seq2SeqTrainerWithConditionalDocType(Seq2SeqTrainer):
             if "labels" in inputs:
                 labels = inputs['labels'] # inputs.pop("labels")
                 pad_mask = labels.unsqueeze(-1).eq(-100) # ignore_index
-                # pad_mask = labels.unsqueeze(-1).eq(self.label_smoother.ignore_index)
-                # labels = torch.cat([labels, labels.clone()], 0) # for r-drop3
             else:
                 labels = None
             
@@ -226,7 +201,7 @@ class Seq2SeqTrainerWithConditionalDocType(Seq2SeqTrainer):
 
             return (loss, outputs) if return_outputs else loss
 
-    def compute_kl_loss(self, net_output, pad_mask=None, reduce=True):
+    def compute_kl_loss(self, net_output: Dict[str, Union[torch.Tensor, Any]], pad_mask=None, reduce=True) -> torch.Tensor:
         net_prob = self.get_normalized_probs(net_output, log_probs=True)
         net_prob_tec = self.get_normalized_probs(net_output, log_probs=False)
 
@@ -248,13 +223,13 @@ class Seq2SeqTrainerWithConditionalDocType(Seq2SeqTrainer):
         loss = (p_loss + q_loss) / 2
         return loss
 
-    def label_smoothed_nll_loss(self, model_output, labels, epsilon):
+    def label_smoothed_nll_loss(self, model_output: Dict[str, Union[torch.Tensor, Any]], labels: torch.Tensor, epsilon: float) -> torch.Tensor:
         logits = model_output["logits"] if isinstance(model_output, dict) else model_output[0]
         log_probs = -F.log_softmax(logits, dim=-1)
         if labels.dim() == log_probs.dim() - 1:
             labels = labels.unsqueeze(-1)
 
-        padding_mask = labels.eq(-100) # self.label_smoother.ignore_index
+        padding_mask = labels.eq(-100)
         # In case the ignore_index is -100, the gather will fail, so we replace labels by 0. The padding_mask
         # will ignore them in any case.
         labels = torch.clamp(labels, min=0)
