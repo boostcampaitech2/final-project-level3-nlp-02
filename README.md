@@ -2,6 +2,10 @@
 
 Final Project in 2nd BoostCamp AI Tech 2기 by **메타몽팀 (2조)**
 
+## Demo
+![Demo](https://github.com/boostcampaitech2/final-project-level3-nlp-02/blob/dev/assets/%EC%8B%9C%EC%97%B0%EC%98%81%EC%83%81.gif?raw=true)
+
+
 ## Content
 - [Project Abstract](#project-abstract)
 - [How to use (최종 모델 checkpoint로 수정해야함)](#how-to-use--------checkpoint--------)
