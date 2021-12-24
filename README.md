@@ -5,6 +5,11 @@ Final Project in 2nd BoostCamp AI Tech 2기 by **메타몽팀 (2조)**
 ## Demo
 ![Demo](https://github.com/boostcampaitech2/final-project-level3-nlp-02/blob/dev/assets/%EC%8B%9C%EC%97%B0%EC%98%81%EC%83%81.gif?raw=true)
 
+## Members
+고창용|박범진|박상하|안명철|이기성|이예빈|정유석|
+:-:|:-:|:-:|:-:|:-:|:-:|:-:
+<img src='https://avatars.githubusercontent.com/u/74341192?v=4' height=80 width=80px></img>|<img src='https://avatars.githubusercontent.com/u/55076964?v=4' height=80 width=80px></img>|<img src='https://avatars.githubusercontent.com/u/48673702?v=4' height=80 width=80px></img>|<img src='https://avatars.githubusercontent.com/u/30790885?v=4' height=80 width=80px></img>|<img src='https://avatars.githubusercontent.com/u/77476370?v=4' height=80 width=80px></img>|<img src='https://avatars.githubusercontent.com/u/68219137?v=4' height=80 width=80px></img>|<img src='https://avatars.githubusercontent.com/u/59636424?v=4' height=80 width=80px></img>
+[Github](https://github.com/changyong93)|[Github](https://github.com/presto105)|[Github](https://github.com/sangHa0411)|[Github](https://github.com/abbymark)|[Github](https://github.com/leeeki)|[Github](https://github.com/Yebin46)|[Github](https://github.com/j961224)
 
 ## Content
 - [Project Abstract](#project-abstract)
