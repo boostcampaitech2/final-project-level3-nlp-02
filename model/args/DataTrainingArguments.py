@@ -133,3 +133,9 @@ class DataTrainingArguments:
             "help": "whether to preprocess(default=False)" 
         }, 
     )
+    is_valid: bool = field(
+         default=False, 
+         metadata={ 
+            "help": "is validation datasets" 
+        }, 
+    )

@@ -63,7 +63,10 @@ def main():
         ## load and process dataset    
     load_dotenv(dotenv_path=data_args.use_auth_token_path)
     USE_AUTH_TOKEN = os.getenv("USE_AUTH_TOKEN")    
-    test_dataset = load_dataset('metamong1/summarization', split="test", use_auth_token=USE_AUTH_TOKEN)
+    if data_args.is_valid:
+        test_dataset = load_dataset('metamong1/summarization', split="validation", use_auth_token=USE_AUTH_TOKEN)
+    else:
+        test_dataset = load_dataset('metamong1/summarization', split="test", use_auth_token=USE_AUTH_TOKEN)
 
     if data_args.use_preprocessing:
         data_preprocessor = Preprocessor()

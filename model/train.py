@@ -75,6 +75,8 @@ def main():
     
     dataset_name = "metamong1/summarization"
     datasets = load_dataset(dataset_name + "_part" if data_args.is_part else dataset_name, use_auth_token=USE_AUTH_TOKEN)
+    if not data_args.is_part:
+        del datasets['test']
 
     if data_args.use_preprocessing:
         data_preprocessor = Preprocessor()
@@ -98,7 +100,7 @@ def main():
     print('** Dataset example')
     print(f"[for Train Dataset] : {train_dataset[0]['title']}")
     print(f"[for Valid Dataset] : {valid_dataset[0]['title']}")
-    
+
     column_names = train_dataset.column_names
     if data_args.relative_eval_steps is not None :
         # Train 동안 relative_eval_steps count 회수 만큼 evaluation 
@@ -107,6 +109,9 @@ def main():
         training_args.num_training_steps =  iter_by_epoch * training_args.num_train_epochs
         training_args.eval_steps = int(training_args.num_training_steps // data_args.relative_eval_steps)
         training_args.save_steps = training_args.eval_steps # save step은 eval step의 배수여야 함
+    if training_args.is_warmup_half:
+        iter_by_epoch = math.ceil(len(train_dataset)/(training_args.per_device_train_batch_size*training_args.gradient_accumulation_steps))
+        training_args.warmup_steps = iter_by_epoch * training_args.num_train_epochs //2
 
     print(f"train_dataset length: {len(train_dataset)}")
     print(f"valid_dataset length: {len(valid_dataset)}")
