@@ -13,8 +13,8 @@ Final Project in 2nd BoostCamp AI Tech 2기 by **메타몽팀 (2조)**
 
 ## Content
 - [Project Abstract](#project-abstract)
-- [How to use (최종 모델 checkpoint로 수정해야함)](#how-to-use--------checkpoint--------)
-- [Result (결과 뽑고 수정 필요)](#result--------------)
+- [How to use](#how-to-use--------checkpoint--------)
+- [Result](#result--------------)
 - [Hardware](#hardware)
 - [Operating System](#operating-system)
 - [Archive Contents](#archive-contents)
@@ -75,8 +75,7 @@ tokenizer.decode(summary_ids.squeeze().tolist(), skip_special_tokens=True)
 
 |            | RougeL |
 |:----------:|:------:|
-| Evaluation | ------ |
-|    Test    | ------ |
+|    Test    | 41.687 |
 
 
 ## Hardware
